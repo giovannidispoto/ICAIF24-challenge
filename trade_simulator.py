@@ -41,7 +41,6 @@ class TradeSimulator(gymnasium.Env):
         self.factor_ary = np.load(args.predict_ary_path)
 
 
-
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
         data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
@@ -210,6 +209,8 @@ class TradeSimulator(gymnasium.Env):
         new_asset = new_cash + new_position * mid_price
 
         reward = new_asset - old_asset
+
+        reward = reward / 100
 
         self.cash = new_cash  # update the cash
         self.asset = new_asset  # update the total asset

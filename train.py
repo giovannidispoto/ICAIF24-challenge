@@ -1,3 +1,4 @@
+import random
 
 from erl_config import build_env
 from trade_simulator import TradeSimulator, EvalTradeSimulator
@@ -7,6 +8,7 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import DummyVecEnv
@@ -83,13 +85,56 @@ env = Monitor(env, log_dir)
 env_args["eval"] = True
 eval_env = build_env(TradeSimulator, env_args, -1)
 eval_env = Monitor(eval_env, log_dir_eval)
-callback = SaveOnBestTrainingRewardCallback(check_freq=max_steps*100, log_dir=log_dir)
+callback = SaveOnBestTrainingRewardCallback(check_freq=max_steps*5, log_dir=log_dir)
 eval_callback = EvalCallback(eval_env,
-                             log_path="./logs_eval/", eval_freq=max_steps*100, n_eval_episodes=100,
+                             log_path="./logs_eval/", eval_freq=max_steps*5, n_eval_episodes=100,
                              deterministic=True, render=False, )
 # set up logger
+
 model = PPO("MlpPolicy", env, verbose=0, tensorboard_log="./ppo_tensorboard/")
 model.learn(total_timesteps=max_steps*1000, callback=[callback, eval_callback], progress_bar=True)
 model.save("PPO_Train")
+
+
+
+#rendom policy execution
+"""
+episode_rewards = []
+
+for episode in range(20):
+    print("Episode: " + str(episode))
+    env.reset()
+    rewards = []
+    for step in range(max_steps):
+            a = random.randint(0,2)
+            s, r, done, truncated, info = env.step(a)
+            rewards.append(r)
+            if done:
+                print("Reward of the episode: ", sum(rewards))
+                episode_rewards.append(sum(rewards))
+                plt.figure()
+                plt.plot(np.asarray(rewards))
+                plt.title(f"Reward of Episode {episode}")
+                plt.show()
+                plt.close()
+                print(f"Mean Reward: {np.asarray(rewards).mean()}")
+                print(f"Min Reward: {np.asarray(rewards).min()}")
+                print(f"Max Reward: {np.asarray(rewards).max()}")
+
+                break
+
 env.close()
+plt.figure()
+plt.hist(np.asarray(episode_rewards))
+plt.title("Distribution of sum of the rewards obtained on 100 episodes")
+plt.show()
+plt.close()
+
+plt.figure()
+plt.plot(np.asarray(episode_rewards))
+plt.xlabel("Episode number")
+plt.ylabel("Episode reward")
+plt.title("Reward per episode")
+plt.show()
+"""
 
