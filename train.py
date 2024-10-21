@@ -76,12 +76,13 @@ env_args = {
         "env_class": TradeSimulator
     }
 
-log_dir = "/tmp/gym/"
+log_dir = "tmp/gym/train"
+log_dir_eval = "tmp/gym/eval"
 env = build_env(TradeSimulator, env_args, -1)
 env = Monitor(env, log_dir)
 env_args["eval"] = True
 eval_env = build_env(TradeSimulator, env_args, -1)
-eval_env = Monitor(eval_env, log_dir)
+eval_env = Monitor(eval_env, log_dir_eval)
 callback = SaveOnBestTrainingRewardCallback(check_freq=max_steps*100, log_dir=log_dir)
 eval_callback = EvalCallback(eval_env,
                              log_path="./logs_eval/", eval_freq=max_steps*100, n_eval_episodes=100,
