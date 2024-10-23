@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import ExtraTreesRegressor
-
+from optuna.visualization import plot_optimization_history
 import tqdm
 from erl_config import build_env
 from trade_simulator import TradeSimulator
@@ -107,6 +107,7 @@ def objective(trial):
     return pd.DataFrame.from_dict(rewards_seed_iterations, orient='index').mean().iloc[-1]
 
 
-study = optuna.create_study(direction="maximize")
+study = optuna.create_study(direction="maximize", storage= f'sqlite:///optuna_study.db')
 study.optimize(objective, n_trials = 50)
+plot_optimization_history(study).show()
 print(study.best_trial)
