@@ -65,8 +65,6 @@ rewards = dfs['reward']
 next_states = pd.DataFrame(dfs['next_state'].to_list())
 absorbing = dfs['absorbing_state']
 actions_values = [0, 1, 2]
-env_args["eval"] = True
-eval_env = build_env(TradeSimulator, env_args, -1)
 np.random.seed()
 seeds = []
 for _ in range(4):
@@ -81,10 +79,11 @@ def objective(trial):
 
     for seed in seeds:
         rewards_seed_iterations[seed] = dict()
+        env_args["eval"] = True
+        eval_env = build_env(TradeSimulator, env_args, -1)
         pi = EpsilonGreedy(actions_values, ZeroQ(), epsilon=0)
         algorithm = FQI(mdp=eval_env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
                         regressor_type=ExtraTreesRegressor, random_state=seed, n_jobs=-1, max_depth=max_depth, min_samples_split = min_split)
-        # ottimizzare min_split con optuna
 
         for i in range(max_iterations):
             rewards_seed_iterations[seed][i] = list()

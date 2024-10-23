@@ -23,6 +23,7 @@ class TradeSimulator(gymnasium.Env):
         train_samples_pct = 0.6,
         eval = False,
         gpu_id=-1,
+        seed = 1234,
     ):
         self.device = th.device(f"cuda:{gpu_id}") if gpu_id >= 0 else device
         self.num_sims = num_sims
@@ -34,6 +35,11 @@ class TradeSimulator(gymnasium.Env):
         self.step_gap = step_gap
         self.sim_ids = th.arange(self.num_sims, device=self.device)
         self.eval = eval
+
+        #set seeds
+        self.seed = seed
+        np.random.seed(self.seed)
+        th.manual_seed(self.seed)
 
         """config"""
         args = ConfigData()
@@ -211,7 +217,8 @@ class TradeSimulator(gymnasium.Env):
 
         reward = new_asset - old_asset
 
-        reward = reward / 100
+        if self.eval is False:
+            reward = reward / 100
 
         self.cash = new_cash  # update the cash
         self.asset = new_asset  # update the total asset
