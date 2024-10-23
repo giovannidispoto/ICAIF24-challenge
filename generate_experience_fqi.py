@@ -19,7 +19,7 @@ from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 
 
 
-max_steps = 3600
+max_steps = 360
 
 env_args = {
         "env_name": "TradeSimulator-v0",
@@ -40,7 +40,7 @@ env = build_env(TradeSimulator, env_args, -1)
 #eval_env = Monitor(eval_env, log_dir_eval, info_keywords=("asset_v", 'mid','new_cash', 'old_cash', "action_exec", "position"))
 
 
-EPISODES = 100
+EPISODES = 1000
 
 #rendom policy execution
 
