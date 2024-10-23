@@ -60,7 +60,7 @@ dfs['next_state'] = dfs['next_state']
 
 state = pd.DataFrame(dfs['state'].to_list())
 state_actions = pd.concat([state, dfs['action'].reset_index(drop=True)], axis=1)
-episodes = 10
+episodes = 50
 rewards = dfs['reward']
 next_states = pd.DataFrame(dfs['next_state'].to_list())
 absorbing = dfs['absorbing_state']
@@ -74,7 +74,7 @@ for _ in range(4):
 
 def objective(trial):
 
-    max_iterations = trial.suggest_int("iterations", low = 2, high = 3, step = 1)
+    max_iterations = trial.suggest_int("iterations", low = 1, high = 10, step = 1)
     max_depth = trial.suggest_int("max_depth", low=10, high=150, step=10)
     min_split = trial.suggest_int("min_samples_split", low=10, high=1000, step=50)
     rewards_seed_iterations = dict()
