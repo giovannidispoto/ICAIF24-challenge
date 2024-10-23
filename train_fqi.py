@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import ExtraTreesRegressor
-from optuna.visualization import plot_optimization_history
 import tqdm
 from erl_config import build_env
 from trade_simulator import TradeSimulator
@@ -103,11 +102,17 @@ def objective(trial):
             #print(f"Reward: {np.mean(rewards_obtained)} +/- {np.std(rewards_obtained)}")
             rewards_seed_iterations[seed][i] = np.mean(rewards_obtained)
 
-
+    if trial.number > 1:
+        fig = optuna.visualization.plot_optimization_history(study)
+        fig.write_image('plot/ParamsOptHistory.png')
+        fig = optuna.visualization.plot_param_importances(study)
+        fig.write_image('plot//ParamsImportance.png')
+        fig = optuna.visualization.plot_contour(study)
+        fig.write_image('plot/ParamsContour.png', width=3000, height=1750)
+        fig = optuna.visualization.plot_slice(study)
+        fig.write_image('plot//ParamsSlice.png')
     return pd.DataFrame.from_dict(rewards_seed_iterations, orient='index').mean().iloc[-1]
 
 
 study = optuna.create_study(direction="maximize", storage= f'sqlite:///optuna_study.db')
 study.optimize(objective, n_trials = 50)
-plot_optimization_history(study).show()
-print(study.best_trial)
