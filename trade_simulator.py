@@ -16,6 +16,7 @@ class TradeSimulator(gymnasium.Env):
         slippage=5e-5,
         max_position=2,
         step_gap=1,
+        gamma = 0.99,
         delay_step=1,
         num_ignore_step=60,
         device=th.device("cpu"),
@@ -25,7 +26,7 @@ class TradeSimulator(gymnasium.Env):
     ):
         self.device = th.device(f"cuda:{gpu_id}") if gpu_id >= 0 else device
         self.num_sims = num_sims
-
+        self.gamma = gamma
         self.slippage = slippage
         self.delay_step = delay_step
         self.max_holding = 60 * 60 // step_gap
@@ -204,7 +205,7 @@ class TradeSimulator(gymnasium.Env):
         """executing"""
         direction = action_int.gt(0)  # True: buy, False: sell
         cost = action_int * mid_price  # action_int * th.where(direction, ask_price, bid_price)
-
+        #action_int is the action performed to change the position (if action is -1 and position is 1 the new_position is 0)
         new_cash = old_cash - cost * th.where(direction, 1 + self.slippage, 1 - self.slippage)
         new_asset = new_cash + new_position * mid_price
 
@@ -218,10 +219,10 @@ class TradeSimulator(gymnasium.Env):
         self.action_int = action_int  # update the action_int
 
         state = self.get_state(step_is_cpu)
-        info_dict = {}
+        info_dict = {"asset_v": new_asset, 'mid': mid_price,'new_cash': new_cash, 'old_cash':old_cash, "action_exec": action_int, "position": new_position}
         if truncated:
             terminal = th.ones_like(self.position, dtype=th.bool)
-            state = self.reset()
+            state, _ = self.reset()
         else:
             # terminal = old_position.ne(0) & new_position.eq(0)
             terminal = th.zeros_like(self.position, dtype=th.bool)

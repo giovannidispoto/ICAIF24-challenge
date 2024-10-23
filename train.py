@@ -1,4 +1,5 @@
 import random
+from abc import ABC
 
 from erl_config import build_env
 from trade_simulator import TradeSimulator, EvalTradeSimulator
@@ -14,6 +15,28 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 
+
+class AfterEvaluationCallback(BaseCallback):
+
+    def _on_step(self) -> bool:
+        print("X")
+        print(self.n_calls)
+        print(self.check_freq)
+        if self.n_calls % self.check_freq == 0:
+            print("Y")
+            x, y = ts2xy(load_results(self.log_dir), "timesteps")
+            print(x)
+        return True
+
+    def __init__(self, verbose: int = 0, log_dir: str = "", check_freq : int = 100):
+        super().__init__(verbose=verbose)
+        self.log_dir = log_dir
+        self.check_freq = check_freq
+        # Give access to the parent
+
+    def _on_event(self) -> bool:
+        print("Event")
+        return True
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
@@ -74,25 +97,27 @@ env_args = {
         "max_position": 1,
         "slippage": 7e-7,
         "num_sims": 1,
-        "step_gap": 2,
+        "step_gap": 1,
         "env_class": TradeSimulator
     }
 
 log_dir = "tmp/gym/train"
 log_dir_eval = "tmp/gym/eval"
 env = build_env(TradeSimulator, env_args, -1)
-env = Monitor(env, log_dir)
+env = Monitor(env, log_dir, info_keywords=("asset_v", 'mid','new_cash', 'old_cash', "action_exec", "position"))
 env_args["eval"] = True
 eval_env = build_env(TradeSimulator, env_args, -1)
-eval_env = Monitor(eval_env, log_dir_eval)
+eval_env = Monitor(eval_env, log_dir_eval, info_keywords=("asset_v", 'mid','new_cash', 'old_cash', "action_exec", "position"))
 callback = SaveOnBestTrainingRewardCallback(check_freq=max_steps*5, log_dir=log_dir)
+
 eval_callback = EvalCallback(eval_env,
                              log_path="./logs_eval/", eval_freq=max_steps*5, n_eval_episodes=100,
-                             deterministic=True, render=False, )
-# set up logger
+                             deterministic=True, render=False, callback_after_eval=AfterEvaluationCallback(log_dir="./logs_eval/", check_freq = 100))
 
+
+# set up logger
 model = PPO("MlpPolicy", env, verbose=0, tensorboard_log="./ppo_tensorboard/")
-model.learn(total_timesteps=max_steps*1000, callback=[callback, eval_callback], progress_bar=True)
+model.learn(total_timesteps=max_steps*1000, callback=[callback, eval_callback,], progress_bar=True)
 model.save("PPO_Train")
 
 
@@ -101,15 +126,17 @@ model.save("PPO_Train")
 """
 episode_rewards = []
 
-for episode in range(20):
+for episode in range(1):
     print("Episode: " + str(episode))
     env.reset()
     rewards = []
     for step in range(max_steps):
-            a = random.randint(0,2)
+            a = 2
             s, r, done, truncated, info = env.step(a)
+            print(info)
             rewards.append(r)
             if done:
+                print(f"Finished at {step}")
                 print("Reward of the episode: ", sum(rewards))
                 episode_rewards.append(sum(rewards))
                 plt.figure()
@@ -137,4 +164,3 @@ plt.ylabel("Episode reward")
 plt.title("Reward per episode")
 plt.show()
 """
-
