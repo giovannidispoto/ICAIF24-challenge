@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import shutil
 from sklearn.ensemble import ExtraTreesRegressor
 import tqdm
 from erl_config import build_env
@@ -76,6 +77,8 @@ np.random.seed()
 seeds = []
 
 if train_agents is True:
+    shutil.rmtree("./checkpoints")
+    os.makedirs("./checkpoints")
     for _ in range(4):
       seeds.append(np.random.randint(100000))
 else:
@@ -128,27 +131,27 @@ for s in year_set.keys():
             else:
                 rewards_df_overall[i] = pd.concat([rewards_df_overall[i], rewards_df], ignore_index=True)
 
-        for i in range(max_iterations):
-            rewards_df_overall[i] = rewards_df_overall[i].cumsum(axis=1) #calculate the cumulative sum of the rewards
-            mean_rewards = np.mean(rewards_df_overall[i], axis=0)
-            sem_rewards = stats.sem(rewards_df_overall[i], axis=0)
+    for i in range(max_iterations):
+        rewards_df_overall[i] = rewards_df_overall[i].cumsum(axis=1) #calculate the cumulative sum of the rewards
+        mean_rewards = np.mean(rewards_df_overall[i], axis=0)
+        sem_rewards = stats.sem(rewards_df_overall[i], axis=0)
 
-            # Compute 95% confidence interval (CI)
-            ci = 1.96 * sem_rewards
-            plt.figure(figsize=(10, 6))
-            steps = np.arange(len(mean_rewards))
+        # Compute 95% confidence interval (CI)
+        ci = 1.96 * sem_rewards
+        plt.figure(figsize=(10, 6))
+        steps = np.arange(len(mean_rewards))
 
-            plt.figure()
-            plt.plot(steps, mean_rewards, label='Mean reward', color='b')
-            plt.fill_between(steps, mean_rewards - ci, mean_rewards + ci, color='b', alpha=0.2, label='95% CI')
+        plt.figure()
+        plt.plot(steps, mean_rewards, label='Mean reward', color='b')
+        plt.fill_between(steps, mean_rewards - ci, mean_rewards + ci, color='b', alpha=0.2, label='95% CI')
 
-            plt.title(f'Phase = {s} | Mean Rewards with 95% Confidence Interval: Iteration {i+1}')
-            plt.xlabel('Steps')
-            plt.ylabel('Reward cumsum')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
-            plt.savefig(f"plot/return_{s}_phase_{i+1}_iteration.png")
+        plt.title(f'Phase = {s} | Mean Rewards with 95% Confidence Interval: Iteration {i+1}')
+        plt.xlabel('Steps')
+        plt.ylabel('Reward cumsum')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        plt.savefig(f"plot/return_{s}_phase_{i+1}_iteration.png")
         #print(f"Reward: {np.mean(rewards_obtained)} +/- {np.std(rewards_obtained)}")
         #rewards_seed_iterations[seed][i] = np.mean(rewards_obtained)
 
