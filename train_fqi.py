@@ -99,7 +99,7 @@ def objective(trial):
             )
             #print(f"Iteration {i + 1} trained")
             #print("Testing")
-            rewards_obtained = np.asarray(Parallel(n_jobs=10)(delayed(evaluation)(algorithm, eval_env) for i in range(episodes)))
+            rewards_obtained = np.asarray(Parallel(n_jobs=50)(delayed(evaluation)(algorithm, eval_env) for i in range(episodes)))
             #print(f"Reward: {np.mean(rewards_obtained)} +/- {np.std(rewards_obtained)}")
             rewards_seed_iterations[seed][i] = np.mean(rewards_obtained)
 
