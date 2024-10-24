@@ -126,7 +126,7 @@ for s in year_set.keys():
             if rewards_df_overall[i] is None:
                 rewards_df_overall[i] = rewards_df
             else:
-                rewards_df_overall[i] = pd.concat([rewards_df_overall, rewards_df], ignore_index=True)
+                rewards_df_overall[i] = pd.concat([rewards_df_overall[i], rewards_df], ignore_index=True)
 
         for i in range(max_iterations):
             rewards_df_overall[i] = rewards_df_overall[i].cumsum(axis=1) #calculate the cumulative sum of the rewards
