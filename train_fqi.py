@@ -72,7 +72,8 @@ for _ in range(4):
 def objective(trial):
 
     max_iterations = trial.suggest_int("iterations", low = 1, high = 10, step = 1)
-    max_depth = trial.suggest_int("max_depth", low=10, high=150, step=10)
+    max_depth = trial.suggest_int("max_depth", low=1, high=30, step=5)
+    n_estimators = trial.suggest_int("n_estimators", low=50, high=150, step=10)
     min_split = trial.suggest_int("min_samples_split", low=10, high=1000, step=50)
     rewards_seed_iterations = dict()
 
@@ -84,7 +85,7 @@ def objective(trial):
         eval_env = build_env(TradeSimulator, env_args, -1)
         pi = EpsilonGreedy(actions_values, ZeroQ(), epsilon=0)
         algorithm = FQI(mdp=eval_env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
-                        regressor_type=ExtraTreesRegressor, random_state=seed, n_jobs=-1, max_depth=max_depth, min_samples_split = min_split)
+                        regressor_type=ExtraTreesRegressor, random_state=seed, n_estimators = n_estimators, n_jobs=-1, max_depth=max_depth, min_samples_split = min_split)
 
         for i in range(max_iterations):
             rewards_seed_iterations[seed][i] = list()
