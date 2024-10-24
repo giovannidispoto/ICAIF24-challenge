@@ -20,7 +20,7 @@ class TradeSimulator(gymnasium.Env):
         delay_step=1,
         num_ignore_step=60,
         device=th.device("cpu"),
-        train_samples_pct = 0.6,
+        days = None,
         eval = False,
         gpu_id=-1,
         seed = 1234,
@@ -35,6 +35,7 @@ class TradeSimulator(gymnasium.Env):
         self.step_gap = step_gap
         self.sim_ids = th.arange(self.num_sims, device=self.device)
         self.eval = eval
+        self.days = days
 
         #set seeds
         self.seed = seed
@@ -51,6 +52,11 @@ class TradeSimulator(gymnasium.Env):
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
         data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
+        data_df['day'] = pd.to_datetime(data_df['system_time']).dt.day
+
+        data_df = data_df[(data_df['day'] >= days[0]) & (data_df['day'] <= days[1])] #get only selected days
+        self.factor_ary = self.factor_ary[data_df.index[0] : data_df.index[-1] + 1]
+
 
         self.price_ary = data_df[["bids_distance_3", "asks_distance_3", "midpoint"]].values
         self.price_ary[:, 0] = self.price_ary[:, 2] * (1 + self.price_ary[:, 0])
@@ -61,13 +67,12 @@ class TradeSimulator(gymnasium.Env):
         self.price_ary = self.price_ary[-self.factor_ary.shape[0] :, :]
 
         self.price_ary = th.tensor(self.price_ary, dtype=th.float32)  # CPU
+        #if eval is False:
+        #    self.factor_ary = self.factor_ary[:int(self.factor_ary.shape[0] * train_samples_pct)]
+        #    self.price_ary = self.price_ary[:int(self.price_ary.shape[0] * train_samples_pct)]
+        #else:
+        #    self.factor_ary = self.factor_ary[int(self.factor_ary.shape[0] * train_samples_pct):]
 
-        if eval is False:
-            self.factor_ary = self.factor_ary[:int(self.factor_ary.shape[0] * train_samples_pct)]
-            self.price_ary = self.price_ary[:int(self.price_ary.shape[0] * train_samples_pct)]
-        else:
-            self.factor_ary = self.factor_ary[int(self.factor_ary.shape[0] * train_samples_pct):]
-            self.price_ary = self.price_ary[int(self.price_ary.shape[0] * train_samples_pct):]
 
 
         self.seq_len = 3600

@@ -32,7 +32,8 @@ env_args = {
         "slippage": 7e-7,
         "num_sims": 1,
         "step_gap": 1,
-        "env_class": TradeSimulator
+        "env_class": TradeSimulator,
+        'days': [7, 13]
     }
 
 env = build_env(TradeSimulator, env_args, -1)
