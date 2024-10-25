@@ -81,7 +81,7 @@ def objective(trial):
         rewards_seed_iterations[seed] = dict()
         env_args["eval"] = True
         env_args["seed"] = seed
-        env_args["days"] = [14, 15]
+        env_args["days"] = [16, 17]
         eval_env = build_env(TradeSimulator, env_args, -1)
         pi = EpsilonGreedy(actions_values, ZeroQ(), epsilon=0)
         algorithm = FQI(mdp=eval_env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,

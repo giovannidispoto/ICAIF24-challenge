@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import numpy as np
 import shutil
@@ -24,7 +26,10 @@ def evaluation(algorithm, eval_env):
     rewards = []
     s, _ = eval_env.reset()
     for st in range(max_steps):
-        a = algorithm._policy.sample_action(s)
+        if algorithm is None:
+            a = random.randint(0, 2)
+        else:
+            a = algorithm._policy.sample_action(s)
         sp, r, done, truncated, _ = eval_env.step(a)
         reward = reward + r
         rewards.append(r.item())
@@ -36,7 +41,7 @@ def evaluation(algorithm, eval_env):
 
 
 
-for p in ['random_policy_testing', 'long_only_policy_testing', 'short_only_policy_testing',
+for p in ['random_policy', 'long_only_policy', 'short_only_policy',
           'flat_only_policy']:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
     df = pd.read_json(f"./data/{p}.json", )
     if dfs is None:
@@ -84,10 +89,10 @@ if train_agents is True:
 else:
     seeds = [int(s.split("d")[1]) for s in os.listdir("checkpoints")] #load saved seeds
 
-year_set = {'test_with_retrain': [16, 17]}
+year_set = {"val": [14, 15], 'test': [16, 17]}
 
 
-max_iterations = 4 #2 # 2 was the iteration number selected
+max_iterations = 1 #2 # 2 was the iteration number selected
 max_depth = 16 #10 #
 min_split = 410 #660 #
 n_estimators = 130
@@ -101,36 +106,16 @@ for s in year_set.keys():
         env_args["days"] = year_set[s]
         eval_env = build_env(TradeSimulator, env_args, -1)
         print(year_set[s])
-        pi = EpsilonGreedy(actions_values, ZeroQ(), epsilon=0)
-        algorithm = FQI(mdp=env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
-                        regressor_type=ExtraTreesRegressor, random_state=seed, n_jobs=-1, max_depth=max_depth,
-                        min_samples_split=min_split, n_estimators=n_estimators)
+        random.seed(seed)
 
-        for i in range(max_iterations):
-            iteration = i + 1
-            if train_agents is True:
-                algorithm._iter(
-                    state_actions.to_numpy(dtype=np.float32),
-                    rewards.to_numpy(dtype=np.float32),
-                    next_states.to_numpy(dtype=np.float32),
-                    absorbing,
-                )
-                model_name = f'Policy_iter{iteration}.pkl'
-                os.makedirs(f"./checkpoints/seed{seed}", exist_ok=True)
-                with open(os.path.join(f"./checkpoints/seed{seed}", model_name), 'wb+') as f:
-                    pickle.dump(algorithm._policy, f)
-            else:
-                with open(os.path.join("./checkpoints", f'Policy_iter{iteration}.pkl'), 'rb') as load_file:
-                    algorithm._policy = pickle.load(load_file)
-
-            #print(f"Iteration {i + 1} trained")
-            #print("Testing")
-            rewards_res = Parallel(n_jobs=10)(delayed(evaluation)(algorithm, eval_env) for i in range(episodes))
-            rewards_df = pd.DataFrame(rewards_res)
-            if rewards_df_overall[i] is None:
-                rewards_df_overall[i] = rewards_df
-            else:
-                rewards_df_overall[i] = pd.concat([rewards_df_overall[i], rewards_df], ignore_index=True)
+        #print(f"Iteration {i + 1} trained")
+        #print("Testing")
+        rewards_res = Parallel(n_jobs=10)(delayed(evaluation)(None, eval_env) for i in range(episodes))
+        rewards_df = pd.DataFrame(rewards_res)
+        if rewards_df_overall[max_iterations - 1] is None:
+            rewards_df_overall[max_iterations - 1] = rewards_df
+        else:
+            rewards_df_overall[max_iterations - 1] = pd.concat([rewards_df_overall[max_iterations - 1], rewards_df], ignore_index=True)
 
     for i in range(max_iterations):
         rewards_df_overall[i] = rewards_df_overall[i].cumsum(axis=1) #calculate the cumulative sum of the rewards
@@ -146,12 +131,13 @@ for s in year_set.keys():
         plt.plot(steps, mean_rewards, label='Mean reward', color='b')
         plt.fill_between(steps, mean_rewards - ci, mean_rewards + ci, color='b', alpha=0.2, label='95% CI')
 
-        plt.title(f'Phase = {s} | Mean Rewards with 95% Confidence Interval: Iteration {i+1}')
+        plt.title(f'Phase = {s} | Mean Rewards with 95% Confidence Interval: Random Policy')
         plt.xlabel('Steps')
         plt.ylabel('Reward cumsum')
         plt.legend()
         plt.grid(True)
-        plt.savefig(f"plot/return_{s}_phase_{i+1}_iteration.png")
+        #plt.show()
+        plt.savefig(f"plot/return_{s}_phase_random_policy.png")
         #print(f"Reward: {np.mean(rewards_obtained)} +/- {np.std(rewards_obtained)}")
         #rewards_seed_iterations[seed][i] = np.mean(rewards_obtained)
 

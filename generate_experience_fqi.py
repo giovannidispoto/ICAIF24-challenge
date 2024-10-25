@@ -17,8 +17,14 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 
+testing = False
 
+if testing is False:
+    days_to_sample = [14, 15]
+else:
+    days_to_sample = [7, 15]
 
+print(days_to_sample)
 max_steps = 360
 
 env_args = {
@@ -33,7 +39,7 @@ env_args = {
         "num_sims": 1,
         "step_gap": 1,
         "env_class": TradeSimulator,
-        'days': [7, 13]
+        'days': days_to_sample
     }
 
 env = build_env(TradeSimulator, env_args, -1)
@@ -70,7 +76,10 @@ for episode in range(EPISODES):
 
 
 df = pd.DataFrame({'state': states, 'action': actions, 'reward': rewards, "next_state": next_states, 'absorbing_state':absorbing_state})
-df.to_json('./data/random_policy.json')
+if testing is True:
+    df.to_json('./data/random_policy_testing.json')
+else:
+    df.to_json('./data/random_policy.json')
 
 #long only
 
@@ -97,7 +106,10 @@ for episode in range(EPISODES):
                 absorbing_state.append(False)
 
 df = pd.DataFrame({'state': states, 'action': actions, 'reward': rewards, "next_state": next_states, 'absorbing_state':absorbing_state})
-df.to_json('./data/long_only_policy.json')
+if testing is True:
+    df.to_json('./data/long_only_policy_testing.json')
+else:
+    df.to_json('./data/long_only_policy.json')
 
 #short only
 
@@ -124,7 +136,11 @@ for episode in range(EPISODES):
                 absorbing_state.append(False)
 
 df = pd.DataFrame({'state': states, 'action': actions, 'reward': rewards, "next_state": next_states, 'absorbing_state':absorbing_state})
-df.to_json('./data/short_only_policy.json')
+if testing is True:
+    df.to_json('./data/short_only_policy_testing.json')
+else:
+    df.to_json('./data/short_only_policy.json')
+
 
 #flat only
 
@@ -151,5 +167,7 @@ for episode in range(EPISODES):
                 absorbing_state.append(False)
 
 df = pd.DataFrame({'state': states, 'action': actions, 'reward': rewards, "next_state": next_states, 'absorbing_state':absorbing_state})
-df.to_json('./data/flat_only_policy.json')
-
+if testing is True:
+    df.to_json('./data/flat_only_policy_testing.json')
+else:
+    df.to_json('./data/flat_only_policy.json')
