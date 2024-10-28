@@ -72,23 +72,27 @@ def get_cli_args():
     return parser.parse_args()
 
 
-def read_dataset():
+def read_dataset(sample_days, policies=None):
     dfs = []
-    for p in ['random_policy', 'long_only_policy', 'short_only_policy',
-              'flat_only_policy']:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
-        df = pd.read_json(f"./data/{p}.json", )
-        dfs.append(df)
-    dfs = pd.concat(dfs)
-    return dfs
+    dfs_unread = []
+    if policies is None:
+        policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
+    for p in policies:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
+        try:
+            df = pd.read_json(f"./data/{p}_{sample_days}.json", )
+            dfs.append(df)
+        except:
+            dfs_unread.append(p)
+    return dfs, dfs_unread
 
-def generate_dataset(days_to_sample, max_steps=360, episodes=1000):
+def generate_dataset(days_to_sample, max_steps=360, episodes=1000, policies=None):
     dfs = []
-    for policy in ['random_policy', 'long_only_policy', 'short_only_policy',
-              'flat_only_policy']:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
-        df = generate_experience(days_to_sample, policy, max_steps=max_steps, episodes=episodes, save=False,
+    if policies is None:
+        policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
+    for policy in policies:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
+        df = generate_experience(days_to_sample, policy, max_steps=max_steps, episodes=episodes, save=True,
                                  testing=False)
         dfs.append(df)
-    dfs = pd.concat(dfs)
     return dfs
 
 
@@ -100,10 +104,19 @@ def tune():
         os.makedirs(out_dir)
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
-    dfs = generate_dataset(days_to_sample=[args.start_day_train, args.end_day_train],
-                           max_steps=args.max_steps, episodes=args.train_episodes)
-    max_steps = args.max_steps
+    sample_days_train = [args.start_day_train, args.end_day_train]
+    policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
+    dfs, dfs_unread = read_dataset(sample_days_train, policies=policies)
+    if len(dfs_unread) > 0:
+        dfs_train = generate_dataset(days_to_sample=sample_days_train,
+                               max_steps=args.max_steps, episodes=args.train_episodes, policies=dfs_unread)
+        dfs += dfs_train
 
+    if len(dfs) > 0:
+        dfs = pd.concat(dfs)
+    else:
+        raise ValueError("No dataset!!")
+    max_steps = args.max_steps
     def evaluation(algorithm, eval_env):
         reward = 0
         s, _ = eval_env.reset()
