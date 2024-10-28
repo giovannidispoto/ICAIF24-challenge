@@ -12,7 +12,7 @@ import optuna
 from ast import literal_eval
 import argparse
 import os
-
+from generate_experience_fqi import generate_experience
 def get_cli_args():
     """Create CLI parser and return parsed arguments"""
     parser = argparse.ArgumentParser()
@@ -59,6 +59,11 @@ def get_cli_args():
         default=360
     )
     parser.add_argument(
+        '--train_episodes',
+        type=int,
+        default=1000
+    )
+    parser.add_argument(
         '--out_dir',
         type=str,
         default="."
@@ -68,15 +73,25 @@ def get_cli_args():
 
 
 def read_dataset():
-    dfs = None
+    dfs = []
     for p in ['random_policy', 'long_only_policy', 'short_only_policy',
               'flat_only_policy']:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
         df = pd.read_json(f"./data/{p}.json", )
-        if dfs is None:
-            dfs = df
-        else:
-            dfs = pd.concat([dfs, df])
-        return dfs
+        dfs.append(df)
+    dfs = pd.concat(dfs)
+    return dfs
+
+def generate_dataset(days_to_sample, max_steps=360, episodes=1000):
+    dfs = []
+    for policy in ['random_policy', 'long_only_policy', 'short_only_policy',
+              'flat_only_policy']:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
+        df = generate_experience(days_to_sample, policy, max_steps=max_steps, episodes=episodes, save=False,
+                                 testing=False)
+        dfs.append(df)
+    dfs = pd.concat(dfs)
+    return dfs
+
+
 def tune():
     args = get_cli_args()
     out_dir = args.out_dir
@@ -85,7 +100,8 @@ def tune():
         os.makedirs(out_dir)
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
-    dfs = read_dataset()
+    dfs = generate_dataset(days_to_sample=[args.start_day_train, args.end_day_train],
+                           max_steps=args.max_steps, episodes=args.train_episodes)
     max_steps = args.max_steps
 
     def evaluation(algorithm, eval_env):
