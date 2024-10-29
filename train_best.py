@@ -66,7 +66,7 @@ for window in range(n_windows):
     max_iterations = loaded_study.best_params['iterations']
     n_estimators = loaded_study.best_params['n_estimators']
     max_depth = loaded_study.best_params['max_depth']
-    min_split = loaded_study.best_params['min_split']
+    min_split = loaded_study.best_params['min_samples_split']
     algorithm = FQI(mdp=eval_env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
                     regressor_type=ExtraTreesRegressor, random_state=seed, n_estimators=n_estimators, n_jobs=-1,
                     max_depth=max_depth, min_samples_split=min_split)
