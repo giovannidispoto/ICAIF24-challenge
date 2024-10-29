@@ -28,7 +28,7 @@ for window in range(n_windows):
     loaded_study = optuna.load_study(study_name=None, storage=study_path)
     start_day_train = start_day + window
     end_day_train = start_day_train + n_train_days - 1
-    sample_days_train = [start_day, start_day + n_train_days - 1]
+    sample_days_train = [start_day_train, start_day_train + n_train_days - 1]
     policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
     dfs, dfs_unread = read_dataset(sample_days_train, policies=policies)
     if len(dfs_unread) > 0:
