@@ -26,7 +26,8 @@ for window in range(n_windows):
     study_path = base_dir + f"/trial_{window}_window/optuna_study.db"
     out_dir = base_out_dir + "/trial_{window}_window/"
     loaded_study = optuna.load_study(study_name=None, storage=study_path)
-    end_day_train = start_day + n_train_days - 1
+    start_day_train = start_day + window
+    end_day_train = start_day_train + n_train_days - 1
     sample_days_train = [start_day, start_day + n_train_days - 1]
     policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
     dfs, dfs_unread = read_dataset(sample_days_train, policies=policies)
@@ -40,7 +41,7 @@ for window in range(n_windows):
     else:
         raise ValueError("No dataset!!")
 
-    state_actions, rewards, next_states, absorbing = prepare_dataset(dfs, sample_frac=0.001)
+    state_actions, rewards, next_states, absorbing = prepare_dataset(dfs)
     actions_values = [0, 1, 2]
     np.random.seed()
     seed = np.random.randint(100000)
