@@ -59,6 +59,11 @@ def get_cli_args():
         default=360
     )
     parser.add_argument(
+        '--n_windows',
+        type=int,
+        default=8
+    )
+    parser.add_argument(
         '--train_episodes',
         type=int,
         default=1000
@@ -95,6 +100,16 @@ def generate_dataset(days_to_sample, max_steps=360, episodes=1000, policies=None
         dfs.append(df)
     return dfs
 
+def prepare_dataset(dfs, sample_frac=1.):
+    dfs = dfs.sample(frac=sample_frac)
+    dfs['state'] = dfs['state']
+    dfs['next_state'] = dfs['next_state']
+    state = pd.DataFrame(dfs['state'].to_list())
+    state_actions = pd.concat([state, dfs['action'].reset_index(drop=True)], axis=1)
+    rewards = dfs['reward']
+    next_states = pd.DataFrame(dfs['next_state'].to_list())
+    absorbing = dfs['absorbing_state']
+    return state_actions, rewards, next_states, absorbing
 
 def tune():
     args = get_cli_args()
@@ -143,20 +158,13 @@ def tune():
         "step_gap": 1,
         "env_class": TradeSimulator
     }
-    dfs = dfs.sample(frac=1)
-    dfs['state'] = dfs['state']
-    dfs['next_state'] = dfs['next_state']
-    state = pd.DataFrame(dfs['state'].to_list())
-    state_actions = pd.concat([state, dfs['action'].reset_index(drop=True)], axis=1)
-    rewards = dfs['reward']
-    next_states = pd.DataFrame(dfs['next_state'].to_list())
-    absorbing = dfs['absorbing_state']
+    state_actions, rewards, next_states, absorbing = prepare_dataset(dfs)
     actions_values = [0, 1, 2]
     np.random.seed()
     seeds = []
     for _ in range(args.n_seeds):
         seeds.append(np.random.randint(100000))
-
+    study = optuna.create_study(direction="maximize", storage= f'sqlite:///{out_dir}/optuna_study.db')
 
     def objective(trial):
         max_iterations = trial.suggest_int("iterations", low=1, high=10, step=1)
@@ -164,7 +172,6 @@ def tune():
         n_estimators = trial.suggest_int("n_estimators", low=50, high=150, step=10)
         min_split = trial.suggest_int("min_samples_split", low=10, high=1000, step=50)
         rewards_seed_iterations = dict()
-
         for seed in seeds:
             rewards_seed_iterations[seed] = dict()
             env_args["eval"] = True
@@ -204,8 +211,6 @@ def tune():
             fig.write_image(plot_dir + '/ParamsSlice.png')
         return pd.DataFrame.from_dict(rewards_seed_iterations, orient='index').mean().iloc[-1]
 
-
-    study = optuna.create_study(direction="maximize", storage= f'sqlite:///{out_dir}/optuna_study.db')
     study.optimize(objective, n_trials=args.n_trials)
 
 if __name__ == "__main__":
