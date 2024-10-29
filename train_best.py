@@ -24,7 +24,7 @@ base_dir = "sqlite:///."
 base_out_dir = '.'
 for window in range(n_windows):
     study_path = base_dir + f"/trial_{window}_window/optuna_study.db"
-    out_dir = base_out_dir + "/trial_{window}_window/"
+    out_dir = base_out_dir + f"/trial_{window}_window/"
     loaded_study = optuna.load_study(study_name=None, storage=study_path)
     start_day_train = start_day + window
     end_day_train = start_day_train + n_train_days - 1
