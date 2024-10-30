@@ -1,0 +1,3 @@
+.venv
+data/BTC_*.npy
+data/BTC_*.csv
