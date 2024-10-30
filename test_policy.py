@@ -16,7 +16,7 @@ env_args = {
         "max_position": 1,
         "slippage": 7e-7,
         "num_sims": 1,
-        "step_gap": 1,
+        "step_gap": 2,
         "env_class": TradeSimulator,
         "eval": True,
         "days": [end_day_train + 1, end_day_train + n_validation_days]
