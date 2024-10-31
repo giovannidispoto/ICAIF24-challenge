@@ -223,8 +223,8 @@ class TradeSimulator(gymnasium.Env):
 
         reward = new_asset - old_asset
 
-        # if self.eval is False:
-        #     reward = reward / 100
+        if self.eval is False:
+            reward = reward / 100
 
         self.cash = new_cash  # update the cash
         self.asset = new_asset  # update the total asset

@@ -219,11 +219,13 @@ class TradeSimulatorOptimizer:
             for seed in self.seeds:
                 agent = self.train_agent(model_params, {}, seed=seed)
                 reward = self.evaluate_agent(agent, seed=seed)
+                print(f"seed: {seed}, reward: {reward}")
                 s_rewards.append(reward)
             
             if trial.number > 1:
                 self._plot_results(trial)
-                
+            
+            print(s_rewards)
             return np.mean(s_rewards)
         
         self.study.optimize(objective, n_trials=self.n_trials)
@@ -254,7 +256,8 @@ if __name__ == "__main__":
     num_ignore_step = 60
     step_gap = 2
     slippage = 7e-7
-    max_steps = (4800 - num_ignore_step) // step_gap
+    # max_steps = (4800 - num_ignore_step) // step_gap
+    max_steps = 480
     
     optimizer = TradeSimulatorOptimizer(
         agent_class=PPO,
@@ -268,7 +271,7 @@ if __name__ == "__main__":
         n_seeds=args.n_seeds,
         n_trials=args.n_trials,
         storage=storage,
-        n_episodes=10,
+        n_episodes=1000
     )
     optimizer.create_study()
     optimizer.run()
