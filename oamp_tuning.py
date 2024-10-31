@@ -13,8 +13,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROJECT_FOLDER = os.getenv("PROJECT_FOLDER")
+
 AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
+os.makedirs(AGENTS_FOLDER, exist_ok=True)
 RUNS_FOLDER = os.path.join(PROJECT_FOLDER, "runs")
+os.makedirs(RUNS_FOLDER, exist_ok=True)
 
 
 def sample_params(trial: optuna.Trial) -> dict:
@@ -46,30 +49,45 @@ def objective(trial: optuna.Trial) -> float:
 
 
 if __name__ == "__main__":
-    EXP_NAME = "oamp_tuning"
+
+    # to launch mlflow dashboard
+    # mlflow server --backend-store-uri file:/home/trading/antonio/ICAIF24-challenge/mlruns --port=5005
+
+    # to launch optuna dashboard
+    # optuna-dashboard mysql+pymysql://ICAIF@localhost/OptunaOAMP
+
+    ## Experiment Params
+    EXP_NAME = "oamp_tuning"                                        
     RUN_NAME = "exp_0"
-    MLFLOW_PORT = 5000
-
     AGENTS_NAMES = ["agent_0", "agent_1", "agent_2", "agent_3"]
-    N_TRIALS = 100
-    N_STARTUP_TRIALS = 10
 
-    sampler = TPESampler(n_startup_trials=N_STARTUP_TRIALS)
-
+    ## MLflow Params
+    MLFLOW_PORT = 5005
+    # Creating new MLflow run
     exp_id = MyMLflow.set_exp(EXP_NAME, MLFLOW_PORT)
+    MyMLflow.start_run(exp_id=exp_id, run_name=RUN_NAME, father=True, overwrite=True)
 
-    MyMLflow.start_run(exp_id=exp_id, run_name=RUN_NAME, overwrite=True)
-
+    ## Optuna Params
+    STUDY_NAME = RUN_NAME
+    N_TRIALS = 5
+    N_STARTUP_TRIALS = 2
+    SAMPLER = TPESampler(n_startup_trials=N_STARTUP_TRIALS)
+    STORAGE = "mysql+pymysql://ICAIF@localhost/OptunaOAMP"
+    OVERWRITE = True
+    # Creating new Optuna study
+    if OVERWRITE:
+       study_names = optuna.study.get_all_study_names(STORAGE)
+       if STUDY_NAME in study_names:
+            optuna.delete_study(study_name=STUDY_NAME, storage=STORAGE)
     study = optuna.create_study(
         study_name=RUN_NAME,
-        sampler=TPESampler(n_startup_trials=N_STARTUP_TRIALS),
+        sampler=SAMPLER,
         direction="maximize",
-        # storage="mysql://pfm:password@localhost/OptunaPPO",
-        load_if_exists=True,
+        storage=STORAGE,
+        load_if_exists=False,
     )
     study.optimize(objective, n_trials=N_TRIALS, show_progress_bar=True)
-
     mlflow.log_params(study.best_params)
     mlflow.log_metric("best_value", study.best_value)
-    mlflow.log_metric("best_trial", study.best_trial)
+    mlflow.log_metric("best_trial", study.best_trial.number)
     mlflow.log_param("n_trials", len(study.trials))

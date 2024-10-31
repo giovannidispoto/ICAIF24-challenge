@@ -18,8 +18,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROJECT_FOLDER = os.getenv("PROJECT_FOLDER")
+
 AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
+os.makedirs(AGENTS_FOLDER, exist_ok=True)
 RUNS_FOLDER = os.path.join(PROJECT_FOLDER, "runs")
+os.makedirs(RUNS_FOLDER, exist_ok=True)
 
 
 def to_python_number(x):
