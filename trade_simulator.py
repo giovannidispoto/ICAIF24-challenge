@@ -16,14 +16,14 @@ class TradeSimulator(gymnasium.Env):
         slippage=5e-5,
         max_position=2,
         step_gap=1,
-        gamma = 0.99,
+        gamma=0.99,
         delay_step=1,
         num_ignore_step=60,
         device=th.device("cpu"),
-        days = None,
-        eval = False,
+        days=None,
+        eval=False,
         gpu_id=-1,
-        seed = 1234,
+        seed=1234,
     ):
         self.device = th.device(f"cuda:{gpu_id}") if gpu_id >= 0 else device
         self.num_sims = num_sims
@@ -37,7 +37,7 @@ class TradeSimulator(gymnasium.Env):
         self.eval = eval
         self.days = days
 
-        #set seeds
+        # set seeds
         self.seed = seed
         np.random.seed(self.seed)
         th.manual_seed(self.seed)
@@ -48,17 +48,19 @@ class TradeSimulator(gymnasium.Env):
         """load data"""
         self.factor_ary = np.load(args.predict_ary_path)
 
-
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
         data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
-        data_df['day'] = pd.to_datetime(data_df['system_time']).dt.day
-
-        data_df = data_df[(data_df['day'] >= days[0]) & (data_df['day'] <= days[1])] #get only selected days
+        data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
+        if days is not None:
+            data_df = data_df[
+                (data_df["day"] >= days[0]) & (data_df["day"] <= days[1])
+            ]  # get only selected days
         self.factor_ary = self.factor_ary[data_df.index[0] : data_df.index[-1] + 1]
 
-
-        self.price_ary = data_df[["bids_distance_3", "asks_distance_3", "midpoint"]].values
+        self.price_ary = data_df[
+            ["bids_distance_3", "asks_distance_3", "midpoint"]
+        ].values
         self.price_ary[:, 0] = self.price_ary[:, 2] * (1 + self.price_ary[:, 0])
         self.price_ary[:, 1] = self.price_ary[:, 2] * (1 + self.price_ary[:, 1])
 
@@ -67,13 +69,11 @@ class TradeSimulator(gymnasium.Env):
         self.price_ary = self.price_ary[-self.factor_ary.shape[0] :, :]
 
         self.price_ary = th.tensor(self.price_ary, dtype=th.float32)  # CPU
-        #if eval is False:
+        # if eval is False:
         #    self.factor_ary = self.factor_ary[:int(self.factor_ary.shape[0] * train_samples_pct)]
         #    self.price_ary = self.price_ary[:int(self.price_ary.shape[0] * train_samples_pct)]
-        #else:
+        # else:
         #    self.factor_ary = self.factor_ary[int(self.factor_ary.shape[0] * train_samples_pct):]
-
-
 
         self.seq_len = 3600
         self.full_seq_len = self.price_ary.shape[0]
@@ -118,7 +118,9 @@ class TradeSimulator(gymnasium.Env):
 
         # if if_random:
         # seleziona un punto causuale di partenza dal minimo di seq_len = 3600 ad un massimo di dataset_size - 3600 * 2
-        i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
+        i0s = np.random.randint(
+            self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims
+        )
         self.step_i = 0
         self.step_is = th.tensor(i0s, dtype=th.long, device=self.device)
         self.cash = th.zeros((num_sims,), dtype=th.float32, device=device)
@@ -129,7 +131,9 @@ class TradeSimulator(gymnasium.Env):
         self.empty_count = th.zeros((num_sims,), dtype=th.long, device=device)
 
         """stop-loss"""
-        self.best_price = th.zeros((self.num_sims,), dtype=th.float32, device=self.device)
+        self.best_price = th.zeros(
+            (self.num_sims,), dtype=th.float32, device=self.device
+        )
 
         step_is = self.step_is + self.step_i
         state = self.get_state(step_is_cpu=step_is.to(th.device("cpu")))
@@ -141,29 +145,22 @@ class TradeSimulator(gymnasium.Env):
         step_is = self.step_is + self.step_i
         step_is_cpu = step_is.to(th.device("cpu"))
 
-        action = action
-        action_int = action - 1  # map (0, 1, 2) to (-1, 0, +1), means (sell, nothing, buy)
-        # action_int = (action - self.max_position) - self.position
-        del action
+        action_int = action - 1
 
         old_cash = self.cash
         old_asset = self.asset
         old_position = self.position
 
-        # the data in price_ary is ['bid', 'ask', 'mid']
-        # bid_price = self.price_ary[step_is_cpu, 0].to(self.device)
-        # ask_price = self.price_ary[step_is_cpu, 1].to(self.device)
         mid_price = self.price_ary[step_is_cpu, 2].to(self.device)
 
-        """get action_int"""
         truncated = self.step_i >= (self.max_step * self.step_gap)
-        if truncated: #se ho raggiunto il limite di step, chiudo la posizione
+        if truncated:
             action_int = -old_position
         else:
             new_position = (old_position + action_int).clip(
                 -self.max_position, self.max_position
-            )  # limit the position
-            action_int = new_position - old_position  # get the limit action
+            )
+            action_int = new_position - old_position
 
             done_mask = (new_position * old_position).lt(0) & old_position.ne(0)
             if done_mask.sum() > 0:
@@ -177,31 +174,33 @@ class TradeSimulator(gymnasium.Env):
             action_int[mask_max_holding] = -old_position[mask_max_holding]
         self.holding[old_position == 0] = 0
 
-        # mask_min_holding = th.logical_and(self.holding.le(self.min_holding), old_position.ne(0))
-        # if mask_min_holding.sum() > 0:
-        #     action_int[mask_min_holding] = 0
-
         """stop-loss"""
-        direction_mask1 = old_position.gt(0) #prendo tutte le simulazioni in cui sono stato long
+        direction_mask1 = old_position.gt(0)
         if direction_mask1.sum() > 0:
             _best_price = th.max(
-                th.stack([self.best_price[direction_mask1], mid_price[direction_mask1]]),
+                th.stack(
+                    [self.best_price[direction_mask1], mid_price[direction_mask1]]
+                ),
                 dim=0,
-            )[0] #prendo il massimo tra il best_price passato e il mid price attuale e lo salvo
+            )[0]
             self.best_price[direction_mask1] = _best_price
 
         direction_mask2 = old_position.lt(0)
         if direction_mask2.sum() > 0:
             _best_price = th.min(
-                th.stack([self.best_price[direction_mask2], mid_price[direction_mask2]]),
+                th.stack(
+                    [self.best_price[direction_mask2], mid_price[direction_mask2]]
+                ),
                 dim=0,
             )[0]
             self.best_price[direction_mask2] = _best_price
 
-        # stop_loss_thresh = mid_price * self.stop_loss_rate
-        # se lo scarto tra il best price e il mid price è superiore alla treshold chiudo la posizione
-        stop_loss_mask1 = th.logical_and(direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh))
-        stop_loss_mask2 = th.logical_and(direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh))
+        stop_loss_mask1 = th.logical_and(
+            direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh)
+        )
+        stop_loss_mask2 = th.logical_and(
+            direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh)
+        )
         stop_loss_mask = th.logical_or(stop_loss_mask1, stop_loss_mask2)
         if stop_loss_mask.sum() > 0:
             action_int[stop_loss_mask] = -old_position[stop_loss_mask]
@@ -214,12 +213,12 @@ class TradeSimulator(gymnasium.Env):
             self.best_price[entry_mask] = mid_price[entry_mask]
 
         """executing"""
-        direction = action_int.gt(0)  # True: buy, False: sell
-        cost = action_int * mid_price  # action_int * th.where(direction, ask_price, bid_price)
-        #action_int is the action performed to change the position (if action is -1 and position is 1 the new_position is 0)
-        new_cash = old_cash - cost * th.where(direction, 1 + self.slippage, 1 - self.slippage)
+        direction = action_int.gt(0)
+        cost = action_int * mid_price
+        new_cash = old_cash - cost * th.where(
+            direction, 1 + self.slippage, 1 - self.slippage
+        )
         new_asset = new_cash + new_position * mid_price
-
         reward = new_asset - old_asset
 
         if self.eval is False:
@@ -231,12 +230,18 @@ class TradeSimulator(gymnasium.Env):
         self.action_int = action_int  # update the action_int
 
         state = self.get_state(step_is_cpu)
-        info_dict = {"asset_v": new_asset, 'mid': mid_price,'new_cash': new_cash, 'old_cash':old_cash, "action_exec": action_int, "position": new_position}
+        info_dict = {
+            "asset_v": new_asset,
+            "mid": mid_price,
+            "new_cash": new_cash,
+            "old_cash": old_cash,
+            "action_exec": action_int,
+            "position": new_position,
+        }
         if truncated:
             terminal = th.ones_like(self.position, dtype=th.bool)
             state, _ = self.reset()
         else:
-            # terminal = old_position.ne(0) & new_position.eq(0)
             terminal = th.zeros_like(self.position, dtype=th.bool)
 
         return state, reward, terminal, truncated, info_dict
@@ -261,7 +266,6 @@ class TradeSimulator(gymnasium.Env):
 
 
 class EvalTradeSimulator(TradeSimulator):
-
     def reset(self, slippage=None, date_strs=()):
         self.stop_loss_thresh = 1e-4
         return self._reset(slippage=slippage, _if_random=False)
@@ -272,7 +276,9 @@ class EvalTradeSimulator(TradeSimulator):
 
 def check_simulator():
     gpu_id = int(sys.argv[1]) if len(sys.argv) > 1 else -1  # 从命令行参数里获得GPU_ID
-    device = th.device(f"cuda:{gpu_id}" if (th.cuda.is_available() and (gpu_id >= 0)) else "cpu")
+    device = th.device(
+        f"cuda:{gpu_id}" if (th.cuda.is_available() and (gpu_id >= 0)) else "cpu"
+    )
     num_sims = 6
     slippage = 0
     step_gap = 2
@@ -298,7 +304,9 @@ def check_simulator():
 
     print("############")
 
-    reward_ary = th.zeros((num_sims, sim.max_step + delay_step), dtype=th.float32, device=device)
+    reward_ary = th.zeros(
+        (num_sims, sim.max_step + delay_step), dtype=th.float32, device=device
+    )
 
     state = sim.reset(slippage=slippage)
     for step_i in range(sim.max_step):
