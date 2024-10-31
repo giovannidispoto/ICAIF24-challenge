@@ -14,8 +14,6 @@ load_dotenv()
 
 PROJECT_FOLDER = os.getenv("PROJECT_FOLDER")
 
-AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
-os.makedirs(AGENTS_FOLDER, exist_ok=True)
 RUNS_FOLDER = os.path.join(PROJECT_FOLDER, "runs")
 os.makedirs(RUNS_FOLDER, exist_ok=True)
 
@@ -38,7 +36,7 @@ def objective(trial: optuna.Trial) -> float:
         mlflow.log_params(run_args)
         value = run_evaluation(
             run_name=os.path.join(RUN_NAME, run_name),
-            agents_names=AGENTS_NAMES,
+            agents_info=AGENTS_INFO,
             oamp_args=sample_params(trial),
         )
         mlflow.log_artifact(
@@ -59,7 +57,24 @@ if __name__ == "__main__":
     ## Experiment Params
     EXP_NAME = "oamp_tuning"                                        
     RUN_NAME = "exp_0"
-    AGENTS_NAMES = ["agent_0", "agent_1", "agent_2", "agent_3"]
+    AGENTS_INFO = {
+        "agent_0": {
+            'type': 'fqi',
+            'policy': 'agent_0.pkl',
+        },
+        "agent_1": {
+            'type': 'fqi',
+            'policy': 'agent_1.pkl',
+        },
+        "agent_2": {
+            'type': 'fqi',
+            'policy': 'agent_2.pkl',
+        },
+        "agent_3": {
+            'type': 'fqi',
+            'policy': 'agent_3.pkl',
+        },
+    }
 
     ## MLflow Params
     MLFLOW_PORT = 5005

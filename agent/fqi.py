@@ -1,8 +1,10 @@
 import numpy as np
 import pickle
 
+from agent.base import AgentBase
 
-class AgentFQI:
+
+class AgentFQI(AgentBase):
     def __init__(
         self,
         policy_path: str,

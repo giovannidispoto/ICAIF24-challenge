@@ -5,7 +5,8 @@ import numpy as np
 
 from tqdm import tqdm
 
-from agent.agent_fqi import AgentFQI
+from agent.base import AgentBase
+from agent.factory import AgentsFactory
 from erl_config import Config, build_env
 from trade_simulator import EvalTradeSimulator
 from metrics import sharpe_ratio, max_drawdown, return_over_max_drawdown
@@ -69,7 +70,7 @@ class EnsembleEvaluator:
     def __init__(
         self,
         run_name,
-        agents_names,
+        agents_info,
         oamp_args,
         args: Config,
     ):
@@ -80,9 +81,10 @@ class EnsembleEvaluator:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.trade_env = build_env(args.env_class, args.env_args, gpu_id=args.gpu_id)
         # Initializing trading agents
-        self.agents_names = agents_names
-        self.agents: list[AgentFQI] = []
-        self.ensemble: OAMP = OAMP(len(self.agents_names), oamp_args)
+        self.agents_info = agents_info
+        self.agents_names = []
+        self.agents: list[AgentBase] = []
+        self.ensemble: OAMP = OAMP(len(agents_info), oamp_args)
         # Initializing trading portfolio
         self.current_btc = 0
         self.cash = [args.starting_cash]
@@ -91,9 +93,9 @@ class EnsembleEvaluator:
 
     def load_agents(self):
         # Loading trading agents
-        for agent_name in self.agents_names:
-            agent_path = os.path.join(AGENTS_FOLDER, f"{agent_name}.pkl")
-            self.agents.append(AgentFQI(agent_path))
+        for agent_name, agent_info in self.agents_info.items():
+            self.agents_names.append(agent_name)
+            self.agents.append(AgentsFactory.load_agent(agent_info))
 
     def multi_trade(self):
         # Initializing trading history
@@ -176,7 +178,7 @@ class EnsembleEvaluator:
 
 def run_evaluation(
     run_name: str,
-    agents_names: str,
+    agents_info: dict,
     oamp_args: dict,
 ):
     import sys
@@ -215,7 +217,7 @@ def run_evaluation(
 
     ensemble_evaluator = EnsembleEvaluator(
         run_name,
-        agents_names,
+        agents_info,
         oamp_args,
         args,
     )
@@ -224,6 +226,23 @@ def run_evaluation(
 
 
 if __name__ == "__main__":
-    run_name = "oamp"
-    agents_names = ["agent_0", "agent_1", "agent_2", "agent_3"]
-    run_evaluation(run_name, agents_names)
+    RUN_NAME = "oamp"
+    AGENTS_INFO = {
+        "agent_0": {
+            'type': 'fqi',
+            'file': 'agent_0.pkl',
+        },
+        "agent_1": {
+            'type': 'fqi',
+            'file': 'agent_1.pkl',
+        },
+        "agent_2": {
+            'type': 'fqi',
+            'file': 'agent_2.pkl',
+        },
+        "agent_3": {
+            'type': 'fqi',
+            'file': 'agent_3.pkl',
+        },
+    }
+    run_evaluation(RUN_NAME, AGENTS_INFO)

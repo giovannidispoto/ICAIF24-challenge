@@ -5,7 +5,8 @@ from erl_config import Config, build_env
 from oamp.oamp import OAMP
 from trade_simulator import TradeSimulator, EvalTradeSimulator
 from tqdm import tqdm
-from agent.agent_fqi import AgentFQI
+from agent.base import AgentBase
+from agent.factory import AgentsFactory
 # from metrics import sharpe_ratio, max_drawdown, return_over_max_drawdown
 
 
@@ -46,7 +47,7 @@ class Ensemble:
     def __init__(
         self,
         starting_cash: float,
-        agents_paths: list[str],
+        agents_info: dict,
         save_path: str,
         args: Config,
     ):
@@ -71,9 +72,11 @@ class Ensemble:
         os.makedirs(self.save_path, exist_ok=True)
 
         # Loading agents
-        self.agents: list[AgentFQI] = []
-        for agent_path in agents_paths:
-            self.agents.append(AgentFQI(agent_path))
+        self.agents: list[AgentBase] = []
+        self.agents_names: list[str] = []
+        for agent_name, agent_info in agents_info.items():
+            self.agents.append(AgentsFactory.load_agent(agent_info))
+            self.agents_names.append(agent_name)
 
     def ensemble_trade(self):
         # Building trading env
@@ -169,7 +172,7 @@ class Ensemble:
 
 def run(
     save_path: str,
-    agents_paths: list[str],
+    agents_info: list[str],
 ):
     starting_cash = 1e6
 
@@ -229,7 +232,7 @@ def run(
 
     ensemble_env = Ensemble(
         starting_cash,
-        agents_paths,
+        agents_info,
         save_path,
         args,
     )
@@ -238,14 +241,26 @@ def run(
 
 if __name__ == "__main__":
     SAVE_PATH = "C:\\Users\\anton\\Desktop\\ICAIF24\\ICAIF24-challenge\\oamp"
-    AGENTS_PATHS = [
-        "C:\\Users\\anton\\Desktop\\ICAIF24\\ICAIF24-challenge\\agents\\agent_0.pkl",
-        "C:\\Users\\anton\\Desktop\\ICAIF24\\ICAIF24-challenge\\agents\\agent_1.pkl",
-        "C:\\Users\\anton\\Desktop\\ICAIF24\\ICAIF24-challenge\\agents\\agent_2.pkl",
-        "C:\\Users\\anton\\Desktop\\ICAIF24\\ICAIF24-challenge\\agents\\agent_3.pkl",
-    ]
+    AGENTS_INFO = {
+        "agent_0": {
+            'type': 'fqi',
+            'file': 'agent_0.pkl',
+        },
+        "agent_1": {
+            'type': 'fqi',
+            'file': 'agent_1.pkl',
+        },
+        "agent_2": {
+            'type': 'fqi',
+            'file': 'agent_2.pkl',
+        },
+        "agent_3": {
+            'type': 'fqi',
+            'file': 'agent_3.pkl',
+        },
+    }
 
     run(
         SAVE_PATH,
-        AGENTS_PATHS,
+        AGENTS_INFO,
     )
