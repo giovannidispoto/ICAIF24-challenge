@@ -1,5 +1,8 @@
+import argparse
 import os
-from stable_baselines3 import PPO
+# from stable_baselines3 import PPO
+from sbx import DQN, PPO
+
 import torch
 import numpy as np
 from erl_config import Config, build_env
@@ -38,11 +41,12 @@ class EnsembleEvaluator:
         # self.net_assets = [torch.tensor(args.starting_cash, device=self.device)]
         self.net_assets = [args.starting_cash]
         self.starting_cash = args.starting_cash
-        self.deterministic = args.get('deterministic', True)
+        self.deterministic = args.deterministic
         
-    def load_agents_sb(self):
+    def load_agents(self):
         for agent_class in self.agent_classes:
-            agent_dir = os.path.join(self.save_path, f"{agent_class.__name__}.zip")
+            agent_name = agent_class.__name__
+            agent_dir = os.path.join(self.save_path, agent_name, f"{agent_name}")
             agent = agent_class.load(agent_dir)
             self.agents.append(agent)
 
@@ -68,6 +72,7 @@ class EnsembleEvaluator:
             
             for agent in agents:
                 tensor_state = torch.as_tensor(intermediate_state, dtype=torch.float32, device=agent.device)
+                # action = trade_env.action_space.sample()
                 action, _ = agent.predict(tensor_state, deterministic=self.deterministic)
                 actions.append(action)
 
@@ -111,10 +116,10 @@ class EnsembleEvaluator:
             current_btcs.append(self.current_btc)
 
         # Save results
-        np.save(f"{self.save_path}_positions.npy", positions)
-        np.save(f"{self.save_path}_net_assets.npy", np.array(self.net_assets))
-        np.save(f"{self.save_path}_btc_positions.npy", np.array(self.btc_assets))
-        np.save(f"{self.save_path}_correct_predictions.npy", np.array(correct_pred))
+        np.save(f"{self.save_path}/positions.npy", positions)
+        np.save(f"{self.save_path}/net_assets.npy", np.array(self.net_assets))
+        np.save(f"{self.save_path}/btc_positions.npy", np.array(self.btc_assets))
+        np.save(f"{self.save_path}/correct_predictions.npy", np.array(correct_pred))
 
         # Compute metrics
         returns = np.diff(self.net_assets) / self.net_assets[:-1]
@@ -122,6 +127,8 @@ class EnsembleEvaluator:
         final_max_drawdown = max_drawdown(returns)
         final_roma = return_over_max_drawdown(returns)
 
+        print(f'P&L: {returns.sum() * 100}%')
+        print(f'Net gain: {self.net_assets[-1] - self.starting_cash}, Starting cash: {self.starting_cash}, Ending cash: {self.net_assets[-1]}')
         print(f"Sharpe Ratio: {final_sharpe_ratio}")
         print(f"Max Drawdown: {final_max_drawdown}")
         print(f"Return over Max Drawdown: {final_roma}")
@@ -130,13 +137,12 @@ class EnsembleEvaluator:
         """Returns the majority action among agents. Our code uses majority voting, you may change this to increase performance."""
         count = Counter([a.item() for a in actions])
         majority_action, _ = count.most_common(1)[0]
-        return torch.tensor([[majority_action]], dtype=torch.int32)
+        return torch.tensor([majority_action], dtype=torch.int32)
 
 
-def run_evaluation(save_path, agent_list):
-    import sys
+def run_evaluation(save_path, agent_list, days):
 
-    gpu_id = int(sys.argv[1]) if len(sys.argv) > 1 else -1  # Get GPU_ID from command line arguments
+    gpu_id = -1
 
     num_sims = 1
     num_ignore_step = 60
@@ -144,7 +150,8 @@ def run_evaluation(save_path, agent_list):
     step_gap = 2
     slippage = 7e-7
 
-    max_step = (4800 - num_ignore_step) // step_gap
+    # max_step = (4800 - num_ignore_step) // step_gap
+    max_step = 480
 
     env_args = {
         "env_name": "TradeSimulator-v0",
@@ -157,13 +164,13 @@ def run_evaluation(save_path, agent_list):
         "slippage": slippage,
         "num_sims": num_sims,
         "step_gap": step_gap,
-        "days": [8, 9],
-        "deterministic": True
+        "days": days, #[ 7  8  9 10 11 12 13 14 15 16 17]
+        "deterministic": True,
+        "eval": True,
     }
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
     args.gpu_id = gpu_id
     args.random_seed = gpu_id
-    args.net_dims = (128, 128, 128)
     args.starting_cash = 1e6
 
     ensemble_evaluator = EnsembleEvaluator(
@@ -171,11 +178,35 @@ def run_evaluation(save_path, agent_list):
         agent_list,
         args,
     )
-    ensemble_evaluator.load_agents_sb()
+    ensemble_evaluator.load_agents()
     ensemble_evaluator.multi_trade()
 
+def get_cli_args():
+    """Create CLI parser and return parsed arguments"""
+    parser = argparse.ArgumentParser()
+    # Example-specific args.
+    parser.add_argument(
+        '--start_day',
+        type=int,
+        default=7,
+        help="starting day (included) "
+    )
+
+    parser.add_argument(
+        '--end_day',
+        type=int,
+        default=15,
+        help="ending day (included) "
+    )
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    save_path = "trained_agents"    
-    agent_list = [PPO]
-    run_evaluation(save_path, agent_list)
+    args = get_cli_args()
+    start_day, end_day = args.start_day, args.end_day
+    agent_list = [DQN]
+    
+    save_path = f'experiments/ensemble_polimi/train/7_8'
+
+    run_evaluation(save_path, agent_list, [start_day, end_day])
+
+

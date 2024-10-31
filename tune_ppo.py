@@ -1,3 +1,4 @@
+import argparse
 import os
 import shutil
 import time
@@ -93,9 +94,6 @@ class Ensemble:
 
         # ensemble configs
         self.save_path = save_path
-        self.ensemble_path = os.path.join(save_path, "ensemble_models")
-        shutil.rmtree(self.ensemble_path)
-        os.makedirs(self.ensemble_path, exist_ok=True)
         self.starting_cash = starting_cash
         self.current_btc = 0
         self.position = [0]
@@ -132,9 +130,9 @@ class Ensemble:
         """Saves the ensemble of agents to a directory."""
         for idx, agent in enumerate(self.agents):            
             agent_name = self.agent_classes[idx].__name__
-            agent_dir = os.path.join(self.ensemble_path, agent_name, f'{agent_name}.zip')
+            agent_dir = os.path.join(self.save_path, agent_name, f'{agent_name}.zip')
             agent.save(agent_dir)
-        print(f"Ensemble models saved in directory: {self.ensemble_path}")
+        print(f"Ensemble models saved in directory: {self.save_path}")
 
     def ensemble_train(self):
         args = self.args
@@ -154,7 +152,7 @@ class Ensemble:
     
     def train_agent(self, args: Config):
         agent_name = args.agent_class.__name__
-        agent_dir = os.path.join(self.ensemble_path, agent_name)
+        agent_dir = os.path.join(self.save_path, agent_name)
         plot_dir = os.path.join(agent_dir, "plots")
         train_logs_dir = os.path.join(agent_dir, "logs")
         tb_dir = os.path.join(train_logs_dir, "tb")
@@ -169,11 +167,11 @@ class Ensemble:
                                  gamma=args.gamma)
 
         
-        total_timesteps = args.max_step * 500
-        n_evals = 5
+        total_timesteps = args.max_step * 1000
+        n_evals = 10
         eval_freq = int(total_timesteps / n_evals)
         eval_callback = EvalCallback(self.trade_env,
-                             log_path=train_logs_dir, eval_freq=eval_freq , n_eval_episodes=100,
+                             log_path=train_logs_dir, eval_freq=eval_freq , n_eval_episodes=20,
                              deterministic=True, render=False)
 
         agent.learn(total_timesteps=total_timesteps, callback=[eval_callback], progress_bar=True)
@@ -185,9 +183,8 @@ class Ensemble:
         return agent
 
 
-def run(save_path, agent_list, log_rules=False):
-    import sys
-    gpu_id = int(sys.argv[1]) if len(sys.argv) > 1 else -1  # 从命令行参数里获得GPU_ID
+def run(save_path, agent_list, days, seed = None, log_rules=False):
+    gpu_id = -1
 
     num_sims = 1
     num_ignore_step = 60
@@ -210,26 +207,26 @@ def run(save_path, agent_list, log_rules=False):
         "num_sims": num_sims,
         "step_gap": step_gap,
         "eval": False,
-        "days": [7],
+        "days": days,
     }
     args = Config(agent_class=None, env_class=TradeSimulator, env_args=env_args)
     args.gpu_id = gpu_id
     args.random_seed = gpu_id
-    args.net_dims = (128, 128, 128)
-
-    args.gamma = 0.995
-    args.explore_rate = 0.005
-    args.state_value_tau = 0.01
-    args.soft_update_tau = 2e-6
-    args.learning_rate = 2e-6
-    args.batch_size = 512
-    args.break_step = int(32)  # TODO reset to 32e4
-    args.buffer_size = int(max_step * 32)
-    args.repeat_times = 2
-    args.horizon_len = int(max_step * 4)
-    args.eval_per_step = int(max_step)
-    args.num_workers = 1
-    args.save_gap = 8
+    
+    # args.net_dims = (128, 128, 128)
+    # args.gamma = 0.995
+    # args.explore_rate = 0.005
+    # args.state_value_tau = 0.01
+    # args.soft_update_tau = 2e-6
+    # args.learning_rate = 2e-6
+    # args.batch_size = 512
+    # args.break_step = int(32)  # TODO reset to 32e4
+    # args.buffer_size = int(max_step * 32)
+    # args.repeat_times = 2
+    # args.horizon_len = int(max_step * 4)
+    # args.eval_per_step = int(max_step)
+    # args.num_workers = 1
+    # args.save_gap = 8
 
     args.eval_env_class = EvalTradeSimulator
     args.eval_env_args = env_args.copy()
@@ -246,10 +243,37 @@ def run(save_path, agent_list, log_rules=False):
     )
     ensemble_env.ensemble_train()
 
+def get_cli_args():
+    """Create CLI parser and return parsed arguments"""
+    parser = argparse.ArgumentParser()
+    # Example-specific args.
+    parser.add_argument(
+        '--start_day',
+        type=int,
+        default=7,
+        help="starting day (included) "
+    )
+
+    parser.add_argument(
+        '--end_day',
+        type=int,
+        default=15,
+        help="ending day (included) "
+    )
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
+    args = get_cli_args()
+    start_day, end_day = args.start_day, args.end_day
+    print(start_day, end_day)
+    agent = PPO
 
+    save_path = f'experiments/tuning/{agent.__name__}/{start_day}_{end_day}'
+    
+    
     run(
-        "experiments/ensemble_polimi",
-        [PPO]
+        save_path,
+        agent,
+        [start_day, end_day],
     )

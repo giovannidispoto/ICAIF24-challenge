@@ -21,7 +21,7 @@ class TradeSimulator(gymnasium.Env):
         delay_step=1,
         num_ignore_step=60,
         device=th.device("cpu"),
-        days: list[int] = [7, 14],
+        days: list[int] = None,
         gpu_id=-1,
         seed = 1234,
     ):
@@ -223,9 +223,8 @@ class TradeSimulator(gymnasium.Env):
 
         reward = new_asset - old_asset
 
-        if self.eval is False:
-            reward = reward / 100
-
+        # if self.eval is False:
+        #     reward = reward / 100
 
         self.cash = new_cash  # update the cash
         self.asset = new_asset  # update the total asset
