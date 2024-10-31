@@ -155,7 +155,7 @@ def tune():
         "max_position": 1,
         "slippage": 7e-7,
         "num_sims": 1,
-        "step_gap": 1,
+        "step_gap": 2,
         "env_class": TradeSimulator
     }
     state_actions, rewards, next_states, absorbing = prepare_dataset(dfs)
