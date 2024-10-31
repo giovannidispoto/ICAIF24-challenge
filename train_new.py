@@ -7,6 +7,8 @@ import torch as th
 from stable_baselines3 import PPO
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.results_plotter import load_results, ts2xy
+from stable_baselines3.common.base_class import BaseAlgorithm
+
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -14,7 +16,7 @@ import matplotlib.pyplot as plt
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.env_util import DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
-
+from stable_baselines3.common.env_util import make_vec_env
 
 class AfterEvaluationCallback(BaseCallback):
 
@@ -85,29 +87,30 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
         return True
 
-max_steps = 3600
+max_steps = 480
 
+n_envs = 1
 env_args = {
         "env_name": "TradeSimulator-v0",
-        "num_envs": 8,
+        "num_envs": n_envs,
         "max_step": max_steps,
         "state_dim": 8 + 2,  # factor_dim + (position, holding)
         "action_dim": 3,  # long, 0, short
         "if_discrete": True,
         "max_position": 1,
         "slippage": 7e-7,
-        "num_sims": 8,
+        "num_sims": n_envs,
         "step_gap": 2,
-        "env_class": TradeSimulator
+        "env_class": TradeSimulator,
+        "days": [7, 8]
     }
 
 log_dir = "tmp/gym/train"
 log_dir_eval = "tmp/gym/eval"
 env = build_env(TradeSimulator, env_args, -1)
+
 env = Monitor(env, log_dir, info_keywords=("asset_v", 'mid','new_cash', 'old_cash', "action_exec", "position"))
 env_args["eval"] = True
-
-
 eval_env = build_env(TradeSimulator, env_args, -1)
 eval_env = Monitor(eval_env, log_dir_eval, info_keywords=("asset_v", 'mid','new_cash', 'old_cash', "action_exec", "position"))
 callback = SaveOnBestTrainingRewardCallback(check_freq=max_steps*5, log_dir=log_dir)
@@ -118,51 +121,11 @@ eval_callback = EvalCallback(eval_env,
 
 
 # set up logger
+agent_class: BaseAlgorithm = PPO
 model = PPO("MlpPolicy", env, verbose=0, tensorboard_log="./ppo_tensorboard/")
-model.learn(total_timesteps=max_steps*1000, callback=[callback, eval_callback,], progress_bar=True)
-model.save("PPO_Train")
+model.learn(total_timesteps=max_steps*1000, callback=[], progress_bar=True)
+model.save("PPO")
 
 
 
-#rendom policy execution
-"""
-episode_rewards = []
 
-for episode in range(1):
-    print("Episode: " + str(episode))
-    env.reset()
-    rewards = []
-    for step in range(max_steps):
-            a = 2
-            s, r, done, truncated, info = env.step(a)
-            print(info)
-            rewards.append(r)
-            if done:
-                print(f"Finished at {step}")
-                print("Reward of the episode: ", sum(rewards))
-                episode_rewards.append(sum(rewards))
-                plt.figure()
-                plt.plot(np.asarray(rewards))
-                plt.title(f"Reward of Episode {episode}")
-                plt.show()
-                plt.close()
-                print(f"Mean Reward: {np.asarray(rewards).mean()}")
-                print(f"Min Reward: {np.asarray(rewards).min()}")
-                print(f"Max Reward: {np.asarray(rewards).max()}")
-
-                break
-
-env.close()
-plt.figure()
-plt.hist(np.asarray(episode_rewards))
-plt.title("Distribution of sum of the rewards obtained on 100 episodes")
-plt.show()
-plt.close()
-
-plt.figure()
-plt.plot(np.asarray(episode_rewards))
-plt.xlabel("Episode number")
-plt.ylabel("Episode reward")
-plt.title("Reward per episode")
-plt.show()
-"""

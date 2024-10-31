@@ -1,0 +1,11 @@
+.venv
+
+.vscode
+
+**/__pycache__/**
+
+TradeSimulator*
+
+results
+
+Task_1_starter_kit/data/*

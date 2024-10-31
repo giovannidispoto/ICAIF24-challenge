@@ -1,5 +1,4 @@
 import os
-from stable_baselines3 import PPO
 import torch
 import numpy as np
 from erl_config import Config, build_env
@@ -7,7 +6,6 @@ from trade_simulator import EvalTradeSimulator
 from erl_agent import AgentD3QN, AgentDoubleDQN, AgentTwinD3QN
 from collections import Counter
 from metrics import sharpe_ratio, max_drawdown, return_over_max_drawdown
-from stable_baselines3.common.base_class import BaseAlgorithm
 
 
 def to_python_number(x):
@@ -38,20 +36,29 @@ class EnsembleEvaluator:
         # self.net_assets = [torch.tensor(args.starting_cash, device=self.device)]
         self.net_assets = [args.starting_cash]
         self.starting_cash = args.starting_cash
-        self.deterministic = args.get('deterministic', True)
-        
-    def load_agents_sb(self):
+
+    def load_agents(self):
+        args = self.args
         for agent_class in self.agent_classes:
-            agent_dir = os.path.join(self.save_path, f"{agent_class.__name__}.zip")
-            agent = agent_class.load(agent_dir)
+            agent = agent_class(
+                args.net_dims,
+                args.state_dim,
+                args.action_dim,
+                gpu_id=args.gpu_id,
+                args=args,
+            )
+            agent_name = agent_class.__name__
+            cwd = os.path.join(self.save_path, agent_name)
+            load_dir = os.path.join("ensemble_teamname", "ensemble_models", agent_name)
+            agent.save_or_load_agent(load_dir, if_save=False)  # Load agent
             self.agents.append(agent)
 
     def multi_trade(self):
         """Evaluation loop using ensemble of agents"""
 
-        agents: list[BaseAlgorithm] = self.agents
+        agents = self.agents
         trade_env = self.trade_env
-        state, _ = trade_env.reset()
+        state = trade_env.reset()
 
         last_state = state
         last_price = 0
@@ -65,16 +72,19 @@ class EnsembleEvaluator:
             actions = []
             intermediate_state = last_state
 
-            
+            # Collect actions from each agent
             for agent in agents:
+                actor = agent.act
                 tensor_state = torch.as_tensor(intermediate_state, dtype=torch.float32, device=agent.device)
-                action, _ = agent.predict(tensor_state, deterministic=self.deterministic)
+                tensor_q_values = actor(tensor_state)
+                tensor_action = tensor_q_values.argmax(dim=1)
+                action = tensor_action.detach().cpu().unsqueeze(1)
                 actions.append(action)
 
             action = self._ensemble_action(actions=actions)
             action_int = action.item() - 1
 
-            state, reward, terminal, truncated, _ = trade_env.step(action=action)
+            state, reward, done, _ = trade_env.step(action=action)
 
             action_ints.append(action_int)
             positions.append(trade_env.position)
@@ -144,7 +154,7 @@ def run_evaluation(save_path, agent_list):
     step_gap = 2
     slippage = 7e-7
 
-    max_step = (4800 - num_ignore_step) // step_gap
+    max_step = (4800 - num_ignore_step) // step_gap #480
 
     env_args = {
         "env_name": "TradeSimulator-v0",
@@ -157,8 +167,7 @@ def run_evaluation(save_path, agent_list):
         "slippage": slippage,
         "num_sims": num_sims,
         "step_gap": step_gap,
-        "days": [8, 9],
-        "deterministic": True
+        "dataset_path": "path_to_evaluation_dataset",  # Replace with your evaluation dataset path
     }
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
     args.gpu_id = gpu_id
@@ -171,11 +180,11 @@ def run_evaluation(save_path, agent_list):
         agent_list,
         args,
     )
-    ensemble_evaluator.load_agents_sb()
+    ensemble_evaluator.load_agents()
     ensemble_evaluator.multi_trade()
 
-
 if __name__ == "__main__":
-    save_path = "trained_agents"    
-    agent_list = [PPO]
+    save_path = "results/"
+    # agent_list = [AgentD3QN, AgentDoubleDQN, AgentTwinD3QN]
+    agent_list = [AgentD3QN, AgentDoubleDQN]
     run_evaluation(save_path, agent_list)

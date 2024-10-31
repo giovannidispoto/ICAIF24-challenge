@@ -1,0 +1,11 @@
+.venv
+
+.vscode
+
+data/BTC_*.npy
+data/BTC_*.csv
+data/BTC_*.parquet
+data/*.json
+
+experiments
+

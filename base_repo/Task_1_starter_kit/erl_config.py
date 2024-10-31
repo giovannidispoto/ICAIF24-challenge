@@ -27,8 +27,6 @@ class Config:
         self.state_dim = env_args['state_dim']  # vector dimension (feature number) of state
         self.action_dim = env_args['action_dim']  # vector dimension (feature number) of action
         self.if_discrete = env_args['if_discrete']  # discrete or continuous action space
-    
-        self.deterministic = env_args.get('deterministic', True)  # deterministic environment or not
 
         '''Arguments for reward shaping'''
         self.gamma = 0.99  # discount factor of future rewards
@@ -112,6 +110,7 @@ def build_env(env_class=None, env_args: dict = None, gpu_id: int = -1):
     for attr_str in ('env_name', 'num_envs', 'max_step', 'state_dim', 'action_dim', 'if_discrete'):
         setattr(env, attr_str, env_args[attr_str])
     return env
+
 
 def kwargs_filter(function, kwargs: dict) -> dict:
     import inspect
