@@ -101,7 +101,7 @@ def tune():
         }
         rewards = []
         env_args["days"] = [args.day_eval, args.day_eval]
-        eval_env = build_env(EvalTradeSimulator, env_args, -1)
+        # eval_env = build_env(EvalTradeSimulator, env_args, -1)
         agents_info = {}
         n_experts = 0
         for i in range(args.n_experts):
