@@ -57,7 +57,6 @@ def tune():
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
     day_eval = args.day_eval
-    max_steps = args.max_steps
     def evaluation(algorithm, eval_env):
         reward = 0
         s, _ = eval_env.reset(eval=True)
@@ -75,7 +74,7 @@ def tune():
     env_args = {
         "env_name": "TradeSimulator-v0",
         "num_envs": 1,
-        "max_step": max_steps,
+        "max_step": 3600,
         "state_dim": 8 + 2,  # factor_dim + (position, holding)
         "action_dim": 3,  # long, 0, short
         "if_discrete": True,
