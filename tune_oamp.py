@@ -56,21 +56,6 @@ def tune():
         os.makedirs(out_dir)
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
-    day_eval = args.day_eval
-    def evaluation(algorithm, eval_env):
-        reward = 0
-        s, _ = eval_env.reset(eval=True)
-        done = truncated = False
-        while not (done or truncated):
-            a = algorithm._policy.sample_action(s)
-            sp, r, done, truncated, _ = eval_env.step(a)
-            reward = reward + r
-            s = sp
-            if done or truncated:
-                break
-
-        return reward
-
     env_args = {
         "env_name": "TradeSimulator-v0",
         "num_envs": 1,
@@ -99,9 +84,7 @@ def tune():
             "loss_fn_window": loss_fn_window,
             "action_thresh": action_thresh
         }
-        rewards = []
         env_args["days"] = [args.day_eval, args.day_eval]
-        # eval_env = build_env(EvalTradeSimulator, env_args, -1)
         agents_info = {}
         n_experts = 0
         for i in range(args.n_experts):
@@ -116,7 +99,7 @@ def tune():
                     max_iteration = iteration
                     policy = policy_path
             if policy is not None:
-
+                print(f"Using Exper:{policy}")
                 agents_info[f"agent_{n_experts}"] = {"type":"fqi",
                                                      "file":policy}
                 n_experts += 1

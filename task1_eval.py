@@ -101,7 +101,7 @@ class EnsembleEvaluator:
         correct_pred = []
         current_btcs = [self.current_btc]
         # Initializing last state and price
-        last_state, _ = self.trade_env.reset(eval=True)
+        last_state, _ = self.trade_env.reset(eval_sequential=True)
         last_price = 0
         # Initializing trading agents rewards
         agents_rewards_old = [0] * len(self.agents)
