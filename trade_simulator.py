@@ -52,9 +52,11 @@ class TradeSimulator(gymnasium.Env):
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
         data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
-        data_df['day'] = pd.to_datetime(data_df['system_time']).dt.day
-
-        data_df = data_df[(data_df['day'] >= days[0]) & (data_df['day'] <= days[1])] #get only selected days
+        data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
+        if days is not None:
+            data_df = data_df[
+                (data_df["day"] >= days[0]) & (data_df["day"] <= days[1])
+            ]  # get only selected days
         self.factor_ary = self.factor_ary[data_df.index[0] : data_df.index[-1] + 1]
 
 
@@ -77,7 +79,7 @@ class TradeSimulator(gymnasium.Env):
 
         self.seq_len = 3600
         self.full_seq_len = self.price_ary.shape[0]
-
+        # overwrite max_step to do whole dataset
         assert self.price_ary.shape[0] == self.factor_ary.shape[0]
 
         # reset()
@@ -110,7 +112,7 @@ class TradeSimulator(gymnasium.Env):
         self.best_price = th.zeros((num_sims,), dtype=th.float32, device=device)
         self.stop_loss_thresh = 1e3
 
-    def _reset(self, slippage=None, _if_random=True):
+    def _reset(self, slippage=None, _if_random=True, eval_sequential=False):
         self.slippage = slippage if isinstance(slippage, float) else self.slippage
 
         num_sims = self.num_sims
@@ -118,7 +120,10 @@ class TradeSimulator(gymnasium.Env):
 
         # if if_random:
         # seleziona un punto causuale di partenza dal minimo di seq_len = 3600 ad un massimo di dataset_size - 3600 * 2
-        i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
+        if not eval_sequential:
+            i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
+        else:
+            i0s = np.ones(self.num_sims) * self.seq_len
         self.step_i = 0
         self.step_is = th.tensor(i0s, dtype=th.long, device=self.device)
         self.cash = th.zeros((num_sims,), dtype=th.float32, device=device)
@@ -141,10 +146,7 @@ class TradeSimulator(gymnasium.Env):
         step_is = self.step_is + self.step_i
         step_is_cpu = step_is.to(th.device("cpu"))
 
-        action = action
-        action_int = action - 1  # map (0, 1, 2) to (-1, 0, +1), means (sell, nothing, buy)
-        # action_int = (action - self.max_position) - self.position
-        del action
+        action_int = action - 1
 
         old_cash = self.cash
         old_asset = self.asset
@@ -241,8 +243,8 @@ class TradeSimulator(gymnasium.Env):
 
         return state, reward, terminal, truncated, info_dict
 
-    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
-        return self._reset(slippage=None, _if_random=True)
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, eval_sequential=False):
+        return self._reset(slippage=None, _if_random=True, eval_sequential=eval_sequential)
 
     def step(self, action):
         return self._step(action, _if_random=True)
@@ -262,9 +264,9 @@ class TradeSimulator(gymnasium.Env):
 
 class EvalTradeSimulator(TradeSimulator):
 
-    def reset(self, slippage=None, date_strs=()):
+    def reset(self, slippage=None, date_strs=(), eval_sequential=False):
         self.stop_loss_thresh = 1e-4
-        return self._reset(slippage=slippage, _if_random=False)
+        return self._reset(slippage=slippage, _if_random=False, eval_sequential=eval_sequential)
 
     def step(self, action):
         return self._step(action, _if_random=False)

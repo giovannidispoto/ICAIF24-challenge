@@ -105,10 +105,11 @@ class Config:
 
 def build_env(env_class=None, env_args: dict = None, gpu_id: int = -1):
     env_args['gpu_id'] = gpu_id  # set gpu_id for vectorized env before build it
-
     env = env_class(**kwargs_filter(env_class.__init__, env_args.copy()))
     for attr_str in ('env_name', 'num_envs', 'max_step', 'state_dim', 'action_dim', 'if_discrete'):
         setattr(env, attr_str, env_args[attr_str])
+    if env_args["eval_sequential"]:
+        setattr(env, "max_step", (env.full_seq_len - env.seq_len) // env.step_gap)
     return env
 
 
