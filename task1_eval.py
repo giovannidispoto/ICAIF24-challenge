@@ -179,34 +179,35 @@ def run_evaluation(
     run_name: str,
     agents_info: dict,
     oamp_args: dict=None,
+    env_args=None
 ):
 
     gpu_id = (
         int(sys.argv[1]) if len(sys.argv) > 1 else -1
     )  # Get GPU_ID from command line arguments
-
-    num_sims = 1
-    num_ignore_step = 60
-    step_gap = 2
-    max_step = (4800 - num_ignore_step) // step_gap
-    max_position = 1
-    slippage = 7e-7
-    # max_ste not used but set to full len
-    env_args = {
-        "env_name": "TradeSimulator-v0",
-        "num_envs": num_sims,
-        "num_sims": num_sims,
-        "max_step": max_step,
-        "step_gap": step_gap,
-        "state_dim": 8 + 2,
-        "action_dim": 3,
-        "if_discrete": True,
-        "max_position": max_position,
-        "slippage": slippage,
-        "dataset_path": "data\BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
-        "days": [15, 16],
-        "eval_sequential": True
-    }
+    if env_args is None:
+        num_sims = 1
+        num_ignore_step = 60
+        step_gap = 2
+        max_step = (4800 - num_ignore_step) // step_gap
+        max_position = 1
+        slippage = 7e-7
+        # max_ste not used but set to full len
+        env_args = {
+            "env_name": "TradeSimulator-v0",
+            "num_envs": num_sims,
+            "num_sims": num_sims,
+            "max_step": max_step,
+            "step_gap": step_gap,
+            "state_dim": 8 + 2,
+            "action_dim": 3,
+            "if_discrete": True,
+            "max_position": max_position,
+            "slippage": slippage,
+            "dataset_path": "data\BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
+            "days": [15, 16],
+            "eval_sequential": True
+        }
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
     args.gpu_id = gpu_id
     args.random_seed = gpu_id

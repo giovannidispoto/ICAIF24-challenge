@@ -100,7 +100,7 @@ def tune():
             "action_thresh": action_thresh
         }
         rewards = []
-        env_args["days"] = [args.day_eval]
+        env_args["days"] = [args.day_eval, args.day_eval]
         eval_env = build_env(EvalTradeSimulator, env_args, -1)
         agents_info = {}
         n_experts = 0
@@ -121,7 +121,7 @@ def tune():
                                                      "file":policy}
                 n_experts += 1
         run_name = f"day_{args.day_eval}_{n_experts}_experts"
-        _, return_ = run_evaluation(run_name, agents_info, oamp_params)
+        _, return_ = run_evaluation(run_name, agents_info, oamp_params, env_args)
         if trial.number > 1:
             fig = optuna.visualization.plot_optimization_history(study)
             fig.write_image(plot_dir + '/ParamsOptHistory.png')
