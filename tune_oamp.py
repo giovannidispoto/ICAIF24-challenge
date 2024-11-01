@@ -89,8 +89,8 @@ def tune():
         n_experts = 0
         for i in range(args.n_experts):
             agent_window = args.day_eval - 7 - (i + 1)
-            agent_dir = args.agent_dir + f"trial_{agent_window}_window_step_gap_2/"
-            policy_list = glob.glob(agent_dir + f'PolicyIter*.pkl')
+            agent_dir = args.agent_dir + f"trial_{agent_window}_window_stap_gap_2/"
+            policy_list = glob.glob(agent_dir + f'Policy_iter*.pkl')
             policy = None
             max_iteration = -1
             for j, policy_path in policy_list:
@@ -99,7 +99,7 @@ def tune():
                     max_iteration = iteration
                     policy = policy_path
             if policy is not None:
-                print(f"Using Exper:{policy}")
+                print(f"Using Expert:{policy}")
                 agents_info[f"agent_{n_experts}"] = {"type":"fqi",
                                                      "file":policy}
                 n_experts += 1
