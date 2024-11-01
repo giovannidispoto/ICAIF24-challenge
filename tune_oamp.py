@@ -93,7 +93,7 @@ def tune():
             policy_list = glob.glob(agent_dir + f'Policy_iter*.pkl')
             policy = None
             max_iteration = -1
-            for j, policy_path in policy_list:
+            for j, policy_path in enumerate(policy_list):
                 iteration = int(policy_path[-5])
                 if iteration > max_iteration:
                     max_iteration = iteration
