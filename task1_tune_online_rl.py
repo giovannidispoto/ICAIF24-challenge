@@ -301,6 +301,8 @@ class TradeSimulatorOptimizer:
             trial.set_user_attr("rewards", rewards)
             trial.set_user_attr("rewards_train", rewards_train)
             
+            rewards = np.array(rewards)
+            
             mean, median, iqm = np.mean(rewards), np.median(rewards), interquartile_mean(rewards)
             print(rewards)
             print(f"Mean: {mean}, Median: {median}, IQM: {iqm}")

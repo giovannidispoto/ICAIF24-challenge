@@ -11,7 +11,7 @@ for ((i=1; i<n_windows; i++)); do
                                     --end_day_train $((start_day + i + n_train_days - 1)) \
                                     --n_seeds $n_seeds \
                                     --n_trials $n_trials \
-                                    --out_dir "experiments/trial_${i}_window_stap_gap_2" &
+                                    --out_dir "experiments/trial_${i}_window_stap_gap_2"
 done
 
 wait  # Wait for all background processes to complete
