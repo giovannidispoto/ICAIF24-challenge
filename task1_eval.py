@@ -182,9 +182,7 @@ def run_evaluation(
     env_args=None
 ):
 
-    gpu_id = (
-        int(sys.argv[1]) if len(sys.argv) > 1 else -1
-    )  # Get GPU_ID from command line arguments
+    gpu_id =-1  # Get GPU_ID from command line arguments
     if env_args is None:
         num_sims = 1
         num_ignore_step = 60
