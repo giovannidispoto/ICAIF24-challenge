@@ -78,7 +78,7 @@ def find_closest_factor(number, y):
     factors = get_factors(y)
     return min(factors, key=lambda x: abs(x - number))
 
-def sample_ppo_params(trial: optuna.Trial, n_envs: int = 1):
+def sample_ppo_params(trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict):
     n_steps_range = [8, 16, 32, 64, 128, 256, 512, 1024, 2048]
     batch_size_range = [8, 16, 32, 64, 128, 256, 512]
         
@@ -128,6 +128,51 @@ def sample_ppo_params(trial: optuna.Trial, n_envs: int = 1):
         ),
     }
     
+def sample_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict):
+    """
+    Sampler for DQN hyperparams.
+
+    :param trial:
+    :return:
+    """
+    gamma = trial.suggest_categorical("gamma", [0.9, 0.95, 0.98, 0.99, 0.995, 0.999, 0.9999])
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1, log=True)
+    batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 100, 128, 256, 512])
+    buffer_size = trial.suggest_categorical("buffer_size", [int(1e4), int(5e4), int(1e5), int(1e6)])
+    exploration_final_eps = trial.suggest_float("exploration_final_eps", 0, 0.2)
+    exploration_fraction = trial.suggest_float("exploration_fraction", 0, 0.5)
+    target_update_interval = trial.suggest_categorical("target_update_interval", [1, 1000, 5000, 10000, 15000, 20000])
+    learning_starts = trial.suggest_categorical("learning_starts", [0, 1000, 5000, 10000, 20000])
+
+    train_freq = trial.suggest_categorical("train_freq", [1, 4, 8, 16, 128, 256, 1000])
+    subsample_steps = trial.suggest_categorical("subsample_steps", [1, 2, 4, 8])
+    gradient_steps = max(train_freq // subsample_steps, 1)
+
+    net_arch_type = trial.suggest_categorical("net_arch", ["tiny", "small", "medium"])
+
+    net_arch = {"tiny": [64], "small": [64, 64], "medium": [256, 256]}[net_arch_type]
+
+    hyperparams = {
+        "gamma": gamma,
+        "learning_rate": learning_rate,
+        "batch_size": batch_size,
+        "buffer_size": buffer_size,
+        "train_freq": train_freq,
+        "gradient_steps": gradient_steps,
+        "exploration_fraction": exploration_fraction,
+        "exploration_final_eps": exploration_final_eps,
+        "target_update_interval": target_update_interval,
+        "learning_starts": learning_starts,
+        "policy_kwargs": dict(net_arch=net_arch),
+    }
+
+    return hyperparams
+
+SAMPLER = {
+    PPO.__name__: sample_ppo_params,
+    DQN.__name__: sample_dqn_params
+}
+    
 
 class TradeSimulatorOptimizer:
     def __init__(self, agent_class: BaseAlgorithm, device, out_dir, plot_dir, start_day_train, end_day_train, max_steps, n_episodes = 1000, storage = None, n_seeds=5, n_trials=100, n_days_val = 1, gpu_id = -1):
@@ -144,6 +189,8 @@ class TradeSimulatorOptimizer:
         self.n_seeds = n_seeds
         self.n_trials = n_trials
         self.storage = storage
+        self.n_envs = 1
+        self.n_actions = 3
         self.env_class = TradeSimulator
         self.eval_env_class = EvalTradeSimulator
         
@@ -165,7 +212,7 @@ class TradeSimulatorOptimizer:
     def _initialize_env_args(self):
         return {
             "env_name": "TradeSimulator-v0",
-            "num_envs": 1,
+            "num_envs": self.n_envs,
             "max_step": self.max_steps,
             "state_dim": 10,
             "action_dim": 3,
@@ -181,30 +228,19 @@ class TradeSimulatorOptimizer:
     def train_agent(self, model_params, learn_params = {}, seed=123):
         env_args = self.env_args.copy()
         env_args["seed"] = seed
+        env_args["max_step"] = 480
         env = build_env(self.env_class, env_args, self.gpu_id)
         agent = self.agent_class("MlpPolicy", env, verbose=0, seed=seed, **model_params)
         agent.learn(total_timesteps=self.max_steps * self.n_episodes, progress_bar=True, **learn_params)
         return agent
     
-    def evaluate_agent(self, agent, seed=123):
-        eval_env_args = self.env_args.copy()
-        first_day_val = self.env_args["days"][-1] + 1
-        eval_env_args.update({
-            "eval": True,
-            "days": [first_day_val, first_day_val + self.n_days_val - 1],
-            "num_envs": 1,
-            "num_sims": 1,
-            "env_class": self.eval_env_class,
-            "seed": seed
-        })
-        eval_env = build_env(self.eval_env_class, eval_env_args, self.gpu_id)
-        
-        state, _ = eval_env.reset()
+    def evaluate_agent(self, agent, trade_env, seed=123):        
+        state, _ = trade_env.reset(seed=seed)
         reward = 0
-        for _ in range(eval_env.max_step):
+        for _ in range(trade_env.max_step):
             tensor_state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
             action, _ = agent.predict(tensor_state, deterministic=True)
-            state, r, terminal, truncated, _ = eval_env.step(action=action)
+            state, r, terminal, truncated, _ = trade_env.step(action=action)
             reward += r
             
             if terminal or truncated:
@@ -213,13 +249,33 @@ class TradeSimulatorOptimizer:
                     
     def optimize_hyperparameters(self):
         def objective(trial):
-            model_params = sample_ppo_params(trial)
+            model_params = SAMPLER[self.agent_class.__name__](trial, n_actions=self.n_actions, n_envs=self.n_envs, additional_args={})
             
             s_rewards = []
             for seed in self.seeds:
                 agent = self.train_agent(model_params, {}, seed=seed)
-                reward = self.evaluate_agent(agent, seed=seed)
-                print(f"seed: {seed}, reward: {reward}")
+                
+                eval_env_args = self.env_args.copy()
+                first_day_val = eval_env_args["days"][-1] + 1
+                eval_env_args.update({
+                    "eval": True,
+                    "days": [first_day_val, first_day_val + self.n_days_val - 1],
+                    "num_envs": 1,
+                    "num_sims": 1,
+                    "env_class": self.eval_env_class,
+                    "seed": seed
+                })
+                eval_env = build_env(self.eval_env_class, eval_env_args, self.gpu_id)
+                reward = self.evaluate_agent(agent, eval_env, seed=seed).item()
+                
+                train_env_args = self.env_args.copy()
+                train_env_args["seed"] = seed
+                train_env_args["eval"] = True
+                train_env_args["env_class"] = self.eval_env_class
+            
+                train_env = build_env(self.env_class, train_env_args, self.gpu_id)
+                train_reward = self.evaluate_agent(agent, train_env, seed=seed).item()
+                print(f"seed: {seed}, reward: {reward}, train_reward: {train_reward}")
                 s_rewards.append(reward)
             
             if trial.number > 1:
@@ -228,6 +284,8 @@ class TradeSimulatorOptimizer:
             print(s_rewards)
             return np.mean(s_rewards)
         
+        print(f"Optimizing {self.agent_class.__name__} hyperparameters")
+        print(f'Using seeds: {self.seeds}')
         self.study.optimize(objective, n_trials=self.n_trials)
     
     def _plot_results(self, trial):
@@ -256,11 +314,11 @@ if __name__ == "__main__":
     num_ignore_step = 60
     step_gap = 2
     slippage = 7e-7
-    # max_steps = (4800 - num_ignore_step) // step_gap
-    max_steps = 480
+    max_steps = (4800 - num_ignore_step) // step_gap
+    # max_steps = 480
     
     optimizer = TradeSimulatorOptimizer(
-        agent_class=PPO,
+        agent_class=DQN, # PPO, DQN
         device=device,
         gpu_id=-1,
         out_dir=out_dir,
@@ -271,7 +329,7 @@ if __name__ == "__main__":
         n_seeds=args.n_seeds,
         n_trials=args.n_trials,
         storage=storage,
-        n_episodes=1000
+        n_episodes=50
     )
     optimizer.create_study()
     optimizer.run()
