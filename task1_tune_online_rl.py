@@ -64,6 +64,15 @@ def get_cli_args():
 
     return parser.parse_args()
 
+def interquartile_mean(data: np.ndarray, q_min: int = 25, q_max: int = 75) -> float:
+    assert data.ndim == 1, "Input data must be 1D"
+    sorted_data = np.sort(data)
+    
+    q_min = np.percentile(sorted_data, q_min)
+    q_max = np.percentile(sorted_data, q_max)
+    filtered_data = sorted_data[(sorted_data >= q_min) & (sorted_data <= q_max)]    
+    iqm = np.mean(filtered_data)
+    return iqm
 
 def get_factors(number: int) -> list:
     factors = []
@@ -251,7 +260,8 @@ class TradeSimulatorOptimizer:
         def objective(trial):
             model_params = SAMPLER[self.agent_class.__name__](trial, n_actions=self.n_actions, n_envs=self.n_envs, additional_args={})
             
-            s_rewards = []
+            rewards = []
+            rewards_train = []
             for seed in self.seeds:
                 agent = self.train_agent(model_params, {}, seed=seed)
                 
@@ -269,20 +279,33 @@ class TradeSimulatorOptimizer:
                 reward = self.evaluate_agent(agent, eval_env, seed=seed).item()
                 
                 train_env_args = self.env_args.copy()
-                train_env_args["seed"] = seed
-                train_env_args["eval"] = True
-                train_env_args["env_class"] = self.eval_env_class
-            
+                train_env_args.update({
+                    "eval": True,
+                    "num_envs": 1,
+                    "num_sims": 1,
+                    "env_class": self.eval_env_class,
+                    "seed": seed
+                })            
                 train_env = build_env(self.env_class, train_env_args, self.gpu_id)
                 train_reward = self.evaluate_agent(agent, train_env, seed=seed).item()
+                
+                
+                
                 print(f"seed: {seed}, reward: {reward}, train_reward: {train_reward}")
-                s_rewards.append(reward)
+                rewards.append(reward)
+                rewards_train.append(train_reward)
             
             if trial.number > 1:
                 self._plot_results(trial)
             
-            print(s_rewards)
-            return np.mean(s_rewards)
+            trial.set_user_attr("rewards", rewards)
+            trial.set_user_attr("rewards_train", rewards_train)
+            
+            mean, median, iqm = np.mean(rewards), np.median(rewards), interquartile_mean(rewards)
+            print(rewards)
+            print(f"Mean: {mean}, Median: {median}, IQM: {iqm}")
+            
+            return iqm
         
         print(f"Optimizing {self.agent_class.__name__} hyperparameters")
         print(f'Using seeds: {self.seeds}')
