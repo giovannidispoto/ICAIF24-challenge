@@ -9,3 +9,4 @@ data/*.json
 
 experiments
 
+**/__pycache__/
