@@ -1,6 +1,16 @@
-#!/bin/sh
-start_day=8
-end_day=8
+# #!/bin/sh
+# window=6
+# agent="DQN"
+# n_seeds=5
 
-python3 train_online_rl.py --start_day_train $start_day \
-                                --end_day_train $end_day
+# python train_online_rl.py --window "$window" --agent "$agent" --n_seeds "$n_seeds"
+
+
+#!/bin/sh
+agent="PPO"
+n_seeds=5
+for window in $(seq 0 7)
+do
+  echo "Training agent $agent with window size: $window"
+  python train_online_rl.py --window "$window" --agent "$agent" --n_seeds "$n_seeds"
+done

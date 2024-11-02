@@ -23,18 +23,18 @@ import seaborn as sns
 def get_cli_args():
     """Create CLI parser and return parsed arguments"""
     parser = argparse.ArgumentParser()
+    
     parser.add_argument(
-        '--start_day_train',
-        type=int,
-        default=7,
-        help="starting day to train (included) "
+        '--agent',
+        type=str,
+        default='DQN'
     )
-
+    
     parser.add_argument(
-        '--end_day_train',
+        '--window',
         type=int,
-        default=7,
-        help="ending day to train (included) "
+        default=0,
+        help="starting window"
     )
     parser.add_argument(
         '--n_seeds',
@@ -63,7 +63,7 @@ def to_python_number(x):
 def plot_heatmap(results: np.ndarray, training_days: list[list[tuple[int, int]]], title="Daily Heatmap", 
                  xticklabels: list[str]=None, yticklabels: list[str]=None,
                  decimal_places: int = 2, use_e_notation: bool = False,
-                 save_path:str = None):
+                 save_path:str = None, force_show: bool = False):
     assert results.ndim == 2
     assert results.shape[0] == len(training_days)
     
@@ -85,6 +85,8 @@ def plot_heatmap(results: np.ndarray, training_days: list[list[tuple[int, int]]]
     plt.title(title)
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
+        if force_show:
+            plt.show()
     else:
         plt.show()
     plt.close()
@@ -173,11 +175,13 @@ class TradeSimulatorTrainer:
         agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=True, **learn_params)
         return agent
     
-    def train_and_evaluate(self):
+    def train_and_evaluate(self, save_path: Optional[str]=None):
         returns = []
         sharpe_ratios = []
         for seed in self.seeds:
             agent = self.train_agent_with_seed(seed)
+            if save_path is not None:
+                agent.save(os.path.join(save_path, f"seed_{seed}"))
             val_returns = []
             val_sharpe_ratios = []
             for val_day in self.val_days:
@@ -272,9 +276,17 @@ class TradeSimulatorTrainer:
 def main():
     args = get_cli_args()
     device = torch.device("cpu")
-    agent_class = DQN  # PPO, DQN
+    # agent_class = DQN  # PPO, DQN
+    agent_class = DQN if args.agent == 'DQN' else PPO
+    window = args.window
     
-    exp_name_dir = "trial_1_window_stap_gap_2_20241101_091342"
+    first_day = 7
+    start_day = window + first_day
+    end_day = start_day
+    
+    print(f"Training {agent_class.__name__} with window {window}")
+    
+    exp_name_dir = f"{agent_class.__name__}_window_{window}"
     
     storage = f"sqlite:///{EXP_DIR}/tuning/completed/{exp_name_dir}/optuna_study.db"
         
@@ -288,39 +300,48 @@ def main():
 
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = f'experiments/train/{agent_class.__name__}_{timestamp}' if args.out_dir is None else args.out_dir
+    out_dir = f'experiments/train/{agent_class.__name__}_window_{window}_{timestamp}' if args.out_dir is None else args.out_dir
     
-    num_ignore_step = 60
-    step_gap = 2
-    max_step = (4800 - num_ignore_step) // step_gap
+    # num_ignore_step = 60
+    # step_gap = 2
+    # max_step = (4800 - num_ignore_step) // step_gap
     max_step = 480
+    eval_max_step = 480
     
     
     trainer = TradeSimulatorTrainer(
         agent_class=agent_class,
         device=device,
-        start_day=args.start_day_train,
-        end_day=args.end_day_train,
+        start_day=start_day,
+        end_day=end_day,
         out_dir=out_dir,
         max_step=max_step,
-        eval_max_step=max_step,
+        eval_max_step=eval_max_step,
         params=model_params,
         deterministic_eval=True,
-        n_episodes=100,
-        n_seeds=5,
+        n_episodes=200,
+        n_seeds=args.n_seeds,
     )
     
-    returns, sharpe_ratios = trainer.train_and_evaluate()
+    tuning_results_dir = EXP_DIR / "tuning" / "completed" / "results"
+    os.makedirs(tuning_results_dir, exist_ok=True)
+    
+    saved_agents_dir = tuning_results_dir / "saved_agents" / f'{agent_class.__name__}_window_{window}'
+    os.makedirs(saved_agents_dir, exist_ok=True)
+    
+    returns, sharpe_ratios = trainer.train_and_evaluate(save_path=saved_agents_dir)
     
     plot_dir = f'{out_dir}/plots'
     os.makedirs(plot_dir, exist_ok=True)
     
+    
+    
     results_dict = {'returns': returns, 'sharpe_ratios': sharpe_ratios}
-    first_day = 7
     for key, results in results_dict.items():
         decimal_places, use_e_notation = (5, False) if key in ['sharpe_ratios'] else (2, False)
         
-        training_days = [[(args.start_day_train-first_day, args.end_day_train-first_day)] for _ in range(results.shape[0])]   
+        train_day_idx = start_day - first_day
+        training_days = [[(train_day_idx, train_day_idx)] for _ in range(results.shape[0])]   
         xticklabels = [f'Day {i+first_day}' for i in range(results.shape[1])] 
         yticklabels = [f'Seed {trainer.seeds[i]}' for i in range(results.shape[0])]
         plot_heatmap(results, training_days,
@@ -331,7 +352,7 @@ def main():
 
         results_mean_seeds = np.mean(results, axis=0)
         results_std_seeds = np.std(results, axis=0)
-        single_train_day = [[(args.start_day_train-first_day, args.end_day_train-first_day)]]
+        single_train_day = [[(train_day_idx, train_day_idx)]]
         plot_heatmap(results_mean_seeds.reshape(1, -1), single_train_day,
                     title=f'Mean {key} heatmap',
                      xticklabels=xticklabels, yticklabels=['Mean Seed'],
@@ -348,8 +369,12 @@ def main():
             "mean": results_mean_seeds,
             "std": results_std_seeds
         }
-        with open(f'{out_dir}/{key}.pkl', 'wb') as file:
-            pickle.dump(res, file)
+        with open(f'{out_dir}/{key}.pkl', 'wb') as f:
+            pickle.dump(res, f)
+        
+        
+        with open(tuning_results_dir / f"{key}_{exp_name_dir}.pkl", "wb") as f:
+            pickle.dump(res, f)
     
     
 
