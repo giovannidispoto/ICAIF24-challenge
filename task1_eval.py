@@ -80,6 +80,8 @@ class EnsembleEvaluator:
             action_int = action.item() - 1
 
             state, reward, terminal, truncated, _ = trade_env.step(action=action)
+            
+            
 
             action_ints.append(action_int)
             positions.append(trade_env.position)

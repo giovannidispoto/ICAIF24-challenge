@@ -113,7 +113,39 @@ def plot_heatmap(results: np.ndarray, training_days: list[list[tuple[int, int]]]
     #             break
         
     #     return total_reward
-    
+
+def trade(action, price, cur_cash, cur_btc):
+    if action == 1:
+        new_cash = cur_cash - price
+        new_btc = cur_btc + 1
+    elif action == -1:
+        new_cash = cur_cash + price
+        new_btc = cur_btc - 1
+    else:
+        new_cash = cur_cash
+        new_btc = cur_btc
+    return new_cash, new_btc
+
+
+def winloss(action, last_price, price):
+    if action > 0:
+        if last_price < price:
+            correct_pred = 1
+        elif last_price > price:
+            correct_pred = -1
+        else:
+            correct_pred = 0
+    elif action < 0:
+        if last_price < price:
+            correct_pred = -1
+        elif last_price > price:
+            correct_pred = 1
+        else:
+            correct_pred = 0
+    else:
+        correct_pred = 0
+    return correct_pred
+
 
 
 class TradeSimulatorTrainer:
@@ -229,48 +261,31 @@ class TradeSimulatorTrainer:
             
             state, reward, terminated, truncated, _ = eval_env.step(action=action)
             reward_int = reward.item()
-            action_ints.append(action_int)
-            positions.append(eval_env.position)
             
-            # Manually compute cumulative returns
-            mid_price = eval_env.price_ary[eval_env.step_i, 2].to(self.device)
-
-            new_cash = cash[-1]
-
-            if action_int > 0 and cash[-1] > mid_price:  # Buy
-                last_cash = cash[-1]
-                new_cash = last_cash - mid_price
-                current_btc += 1
-            elif action_int < 0 and current_btc > 0:  # Sell
-                last_cash = cash[-1]
-                new_cash = last_cash + mid_price
-                current_btc -= 1
-
+            price = eval_env.price_ary[eval_env.step_i, 2].to(self.device)
+            new_cash, current_btc = trade(
+                action_int, price, cash[-1], current_btc
+            )
+            
             cash.append(new_cash)
-            btc_assets.append((current_btc * mid_price).item())
-            net_assets.append((to_python_number(btc_assets[-1]) + to_python_number(new_cash)))
-
-            # Log win rate
-            if action_int == 1:
-                correct_pred.append(1 if last_price < mid_price else -1 if last_price > mid_price else 0)
-            elif action_int == -1:
-                correct_pred.append(-1 if last_price < mid_price else 1 if last_price > mid_price else 0)
-            else:
-                correct_pred.append(0)
-
-            last_price = mid_price
+            btc_assets.append((current_btc * price).item())
+            net_assets.append(
+                (to_python_number(btc_assets[-1]) + to_python_number(new_cash))
+            )
+            # Upadting trading history
+            positions.append(eval_env.position)
+            action_ints.append(action_int)
             current_btcs.append(current_btc)
-            
-            
+            correct_pred.append(winloss(action_int, last_price, price))
+            # Updating last state and price
+            last_price = price
             total_reward += reward_int
             if terminated or truncated:
                 break
-        
+            
         returns = np.diff(net_assets) / net_assets[:-1]
         final_sharpe_ratio = sharpe_ratio(returns)
-        # final_max_drawdown = max_drawdown(returns)
-        # final_roma = return_over_max_drawdown(returns)
-                
+                    
         return total_reward, final_sharpe_ratio
 
 def main():
@@ -305,6 +320,8 @@ def main():
     # num_ignore_step = 60
     # step_gap = 2
     # max_step = (4800 - num_ignore_step) // step_gap
+    # eval_max_step = max_step
+    
     max_step = 480
     eval_max_step = 480
     
@@ -319,7 +336,7 @@ def main():
         eval_max_step=eval_max_step,
         params=model_params,
         deterministic_eval=True,
-        n_episodes=200,
+        n_episodes=500,
         n_seeds=args.n_seeds,
     )
     
