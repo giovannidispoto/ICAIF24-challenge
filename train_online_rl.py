@@ -13,13 +13,11 @@ from optuna import load_study
 from config import EXP_DIR
 from erl_config import build_env
 from metrics import max_drawdown, return_over_max_drawdown, sharpe_ratio
+from sample_online_rl import SAMPLER
 from task1_eval import to_python_number, trade, winloss
 from trade_simulator import EvalTradeSimulator, TradeSimulator
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-from tune_online_rl import SAMPLER
-
 
 
 def get_cli_args():
