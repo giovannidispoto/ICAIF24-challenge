@@ -29,6 +29,13 @@ def get_cli_args():
     parser = argparse.ArgumentParser()
     # Example-specific args.
     parser.add_argument(
+        '--agent',
+        type=str,
+        default="PPO",
+        help="Agent class name"
+    )
+    
+    parser.add_argument(
         '--start_day_train',
         type=int,
         default=7,
@@ -187,7 +194,7 @@ SAMPLER = {
 
 class TradeSimulatorOptimizer:
     def __init__(self, agent_class: BaseAlgorithm, device, out_dir, plot_dir, 
-                 start_day_train, end_day_train, max_steps, 
+                 start_day_train, end_day_train, max_step, eval_max_step = None, deterministic_eval=True,
                  n_episodes = 1000, storage = None, n_seeds=5, n_trials=100, n_days_val = 1, gpu_id = -1):
         self.agent_class = agent_class
         self.device = device
@@ -197,13 +204,15 @@ class TradeSimulatorOptimizer:
         self.start_day_train = start_day_train
         self.end_day_train = end_day_train
         self.n_days_val = n_days_val
-        self.max_steps = max_steps
+        self.max_step = max_step
+        self.eval_max_step = eval_max_step if eval_max_step is not None else max_step
         self.n_episodes = n_episodes
         self.n_seeds = n_seeds
         self.n_trials = n_trials
         self.storage = storage
         self.n_envs = 1
         self.n_actions = 3
+        self.deterministic_eval = deterministic_eval
         self.env_class = TradeSimulator
         self.eval_env_class = EvalTradeSimulator
         
@@ -226,7 +235,7 @@ class TradeSimulatorOptimizer:
         return {
             "env_name": "TradeSimulator-v0",
             "num_envs": self.n_envs,
-            "max_step": self.max_steps,
+            "max_step": self.max_step,
             "state_dim": 10,
             "action_dim": 3,
             "if_discrete": True,
@@ -235,16 +244,16 @@ class TradeSimulatorOptimizer:
             "num_sims": 1,
             "step_gap": 2,
             "env_class": self.env_class,
-            "days": [self.start_day_train, self.end_day_train]
+            "days": [self.start_day_train, self.end_day_train],
+            "eval_sequential": False,
         }
         
     def train_agent(self, model_params, learn_params = {}, seed=123):
         env_args = self.env_args.copy()
         env_args["seed"] = seed
-        env_args["max_step"] = 480
         env = build_env(self.env_class, env_args, self.gpu_id)
         agent = self.agent_class("MlpPolicy", env, verbose=0, seed=seed, **model_params)
-        agent.learn(total_timesteps=self.max_steps * self.n_episodes, progress_bar=True, **learn_params)
+        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=False, **learn_params)
         return agent
     
     def evaluate_agent(self, agent, days, seed=None):
@@ -329,7 +338,9 @@ class TradeSimulatorOptimizer:
                 
                 print(f"seed: {seed}, reward: {reward}, train_reward: {train_reward}, sharpe_ratio: {sharpe_ratio}, train_sharpe_ratio: {train_sharpe_ratio}")
                 rewards.append(reward)
+                sharpe_ratios.append(sharpe_ratio)
                 rewards_train.append(train_reward)
+                sharpe_ratios_train.append(train_sharpe_ratio)
             
             if trial.number > 1:
                 self._plot_results(trial)
@@ -345,9 +356,13 @@ class TradeSimulatorOptimizer:
             mean_rewards, median_rewards, iqm_rewards = np.mean(rewards), np.median(rewards), interquartile_mean(rewards)
             print(f"Mean: {mean_rewards}, Median: {median_rewards}, IQM: {iqm_rewards}")
             
-            sharpe_ratios = np.array(sharpe_ratios)
+            
+            sharpe_ratios = [x for x in sharpe_ratios if x != np.inf] # Ignoring inf values   
+            sharpe_ratios = np.array(sharpe_ratios) if len(sharpe_ratios) > 0 else np.array([0])
+            
             mean_sr, median_sr, iqm_sr = np.mean(sharpe_ratios), np.median(sharpe_ratios), interquartile_mean(sharpe_ratios)
             print(f"Mean: {mean_sr}, Median: {median_sr}, IQM: {iqm_sr}")
+            
             return iqm_sr
         
         print(f"Optimizing {self.agent_class.__name__} hyperparameters")
@@ -370,6 +385,15 @@ class TradeSimulatorOptimizer:
 if __name__ == "__main__":
     args = get_cli_args()
     
+    if args.agent == "PPO":
+        agent_class = PPO
+    elif args.agent == "DQN":
+        agent_class = DQN
+    else:
+        raise ValueError()
+    
+    print(f'Tuning agent: {agent_class.__name__}')
+    
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -380,22 +404,24 @@ if __name__ == "__main__":
     num_ignore_step = 60
     step_gap = 2
     slippage = 7e-7
-    max_steps = (4800 - num_ignore_step) // step_gap
+    max_step = (4800 - num_ignore_step) // step_gap
+    eval_max_step = max_step
     # max_steps = 480
     
     optimizer = TradeSimulatorOptimizer(
-        agent_class=DQN, # PPO, DQN
+        agent_class=agent_class,
         device=device,
         gpu_id=-1,
         out_dir=out_dir,
         plot_dir=plot_dir,
         start_day_train=args.start_day_train,
         end_day_train=args.end_day_train,
-        max_steps=max_steps,
+        max_step=max_step,
+        eval_max_step=eval_max_step,
         n_seeds=args.n_seeds,
         n_trials=args.n_trials,
         storage=storage,
-        n_episodes=50
+        n_episodes=50,
     )
     optimizer.create_study()
     optimizer.run()

@@ -51,7 +51,8 @@ class TradeSimulator(gymnasium.Env):
 
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
-        data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
+        # data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
+        data_df = pd.read_parquet(args.parquet_path)
         data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
         if days is not None:
             data_df = data_df[
@@ -244,6 +245,7 @@ class TradeSimulator(gymnasium.Env):
         return state, reward, terminal, truncated, info_dict
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, eval_sequential=False):
+        super().reset(seed=seed)
         return self._reset(slippage=None, _if_random=True, eval_sequential=eval_sequential)
 
     def step(self, action):
@@ -264,7 +266,8 @@ class TradeSimulator(gymnasium.Env):
 
 class EvalTradeSimulator(TradeSimulator):
 
-    def reset(self, slippage=None, date_strs=(), eval_sequential=False):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, slippage=None, date_strs=(), eval_sequential=False):
+        super().reset(seed=seed)
         self.stop_loss_thresh = 1e-4
         return self._reset(slippage=slippage, _if_random=False, eval_sequential=eval_sequential)
 
