@@ -25,12 +25,6 @@ def get_cli_args():
         help="number of iterations of optuna"
     )
     parser.add_argument(
-        '--n_experts',
-        type=int,
-        default=5,
-        help="max nr of experts"
-    )
-    parser.add_argument(
         '--n_seeds',
         type=int,
         default=1
@@ -43,7 +37,7 @@ def get_cli_args():
     parser.add_argument(
         '--out_dir',
         type=str,
-        default="."
+        default="experiments/oamp/"
     )
 
     return parser.parse_args()
@@ -87,23 +81,34 @@ def tune():
         env_args["days"] = [args.day_eval, args.day_eval]
         agents_info = {}
         n_experts = 0
-        for i in range(args.n_experts):
-            agent_window = args.day_eval - 7 - (i + 1)
-            agent_dir = args.agent_dir + f"trial_{agent_window}_window_stap_gap_2/"
-            policy_list = glob.glob(agent_dir + f'Policy_iter*.pkl')
-            policy = None
-            max_iteration = -1
-            for j, policy_path in enumerate(policy_list):
-                iteration = int(policy_path[-5])
-                if iteration > max_iteration:
-                    max_iteration = iteration
-                    policy = policy_path
-            if policy is not None:
-                print(f"Using Expert:{policy}")
-                agents_info[f"agent_{n_experts}"] = {"type":"fqi",
-                                                     "file":policy}
-                n_experts += 1
+        
+        agent_dirs = os.listdir(args.agent_dir)
+        # agent_dirs = [] #list here the agent directories names you want to use
+        
+        for agent_dir_name in agent_dirs:
+            agent_class = agent_dir_name.split("_")[0].lower()
+            
+            if agent_class == 'fqi':
+                policy_list = glob.glob(f'{args.agent_dir}/{agent_dir_name}/Policy_iter*.pkl')
+                policy = None
+                max_iteration = -1
+                for j, policy_path in enumerate(policy_list):
+                    iteration = int(policy_path[-5])
+                    if iteration > max_iteration:
+                        max_iteration = iteration
+                        policy = policy_path
+                if policy is not None:
+                    print(f"Using Expert:{policy}")
+                    agents_info[f"agent_{n_experts}"] = {"type":agent_class,
+                                                        "file":policy}
+                    n_experts += 1
+            elif agent_class in ['dqn', 'ppo']:
+                agents_info[f"agent_{n_experts}"] = {"type":agent_class,
+                                                     "file":agent_dir_name}
+            n_experts += 1
+            
         run_name = f"day_{args.day_eval}_{n_experts}_experts"
+        
         _, return_ = run_evaluation(run_name, agents_info, oamp_params, env_args)
         if trial.number > 1:
             fig = optuna.visualization.plot_optimization_history(study)

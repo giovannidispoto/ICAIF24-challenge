@@ -1,8 +1,7 @@
 .venv
 
-data/*.csv
-data/*.parquet
-data/*.pkl
+data
+
 
 experiments/*
 
