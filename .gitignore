@@ -1,0 +1,11 @@
+.venv
+
+data/*.csv
+data/*.parquet
+data/*.pkl
+
+experiments/*
+
+**/__pycache__/
+
+agents/*
