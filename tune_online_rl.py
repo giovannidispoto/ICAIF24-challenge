@@ -135,7 +135,7 @@ class TradeSimulatorOptimizer:
         env_args["seed"] = seed
         env = build_env(self.env_class, env_args, self.gpu_id)
         agent = self.agent_class("MlpPolicy", env, verbose=0, device="cpu", seed=seed, **model_params)
-        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=True, **learn_params)
+        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=False, **learn_params)
         return agent
     
     def evaluate_agent(self, agent, days, seed=None):

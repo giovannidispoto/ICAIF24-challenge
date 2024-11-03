@@ -195,3 +195,8 @@ SAMPLER = {
     A2C.__name__: sample_a2c_params,
 }
 
+ONLINE_RL_NAME_TO_CLASS_DICT = {
+    "ppo": PPO,
+    "dqn": DQN,
+    "a2c": A2C,
+}
