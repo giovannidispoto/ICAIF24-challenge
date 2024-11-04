@@ -13,11 +13,13 @@ from optuna import load_study
 from config import EXP_DIR
 from erl_config import build_env
 from metrics import max_drawdown, return_over_max_drawdown, sharpe_ratio
-from sample_online_rl import SAMPLER
 from task1_eval import to_python_number, trade, winloss
 from trade_simulator import EvalTradeSimulator, TradeSimulator
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tune_online_rl import SAMPLER
+
+FIRST_DAY = 7
 
 
 def get_cli_args():
@@ -132,6 +134,7 @@ class TradeSimulatorTrainer:
             "slippage": 7e-7,
             "num_sims": 1,
             "step_gap": 2,
+            "eval_sequential": False,
             "env_class": TradeSimulator,
             "max_step": self.max_step,
             "days": [self.start_day, self.end_day]
@@ -234,17 +237,16 @@ def main():
     agent_class = DQN if args.agent == 'DQN' else PPO
     window = args.window
     
-    first_day = 7
-    start_day = window + first_day
+    start_day = window + FIRST_DAY
     end_day = start_day
     
-    print(f"Training {agent_class.__name__} with window {window}")
+    print(f"Training {agent_class.__name__} with window {window}, start_day {start_day}, end_day {end_day}")
     
     exp_name_dir = f"{agent_class.__name__}_window_{window}"
     
     storage = f"sqlite:///{EXP_DIR}/tuning/completed/{exp_name_dir}/optuna_study.db"
         
-    if storage is not None:
+    if storage is not None and os.path.exists(storage):
         study = optuna.load_study(study_name=None, storage=storage)
         best_trial = study.best_trial
         model_params = SAMPLER[agent_class.__name__](best_trial, n_actions=3, n_envs=1, additional_args={})
@@ -271,7 +273,7 @@ def main():
         eval_max_step=eval_max_step,
         params=model_params,
         deterministic_eval=True,
-        n_episodes=500,
+        n_episodes=50,
         n_seeds=args.n_seeds,
     )
     
@@ -292,9 +294,9 @@ def main():
     for key, results in results_dict.items():
         decimal_places, use_e_notation = (5, False) if key in ['sharpe_ratios'] else (2, False)
         
-        train_day_idx = start_day - first_day
+        train_day_idx = start_day - FIRST_DAY
         training_days = [[(train_day_idx, train_day_idx)] for _ in range(results.shape[0])]   
-        xticklabels = [f'Day {i+first_day}' for i in range(results.shape[1])] 
+        xticklabels = [f'Day {i+FIRST_DAY}' for i in range(results.shape[1])] 
         yticklabels = [f'Seed {trainer.seeds[i]}' for i in range(results.shape[0])]
         plot_heatmap(results, training_days,
                      title=f'{key} heatmap',
