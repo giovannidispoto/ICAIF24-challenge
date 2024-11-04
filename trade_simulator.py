@@ -124,7 +124,7 @@ class TradeSimulator(gymnasium.Env):
         if not eval_sequential:
             i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
         else:
-            i0s = np.ones(self.num_sims) * self.seq_len
+            i0s = np.zeros(self.num_sims) #np.ones(self.num_sims) * self.seq_len
         self.step_i = 0
         self.step_is = th.tensor(i0s, dtype=th.long, device=self.device)
         self.cash = th.zeros((num_sims,), dtype=th.float32, device=device)

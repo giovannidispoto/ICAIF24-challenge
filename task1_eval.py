@@ -203,7 +203,7 @@ def run_evaluation(
             "max_position": max_position,
             "slippage": slippage,
             "dataset_path": "data\BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
-            "days": [15, 16],
+            "days": [17, 17],
             "eval_sequential": True
         }
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
