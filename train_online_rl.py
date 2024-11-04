@@ -272,7 +272,7 @@ def main():
         max_step=max_step,
         eval_max_step=eval_max_step,
         params=model_params,
-        deterministic_eval=True,
+        deterministic_eval=False,
         n_episodes=50,
         n_seeds=args.n_seeds,
     )
