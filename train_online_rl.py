@@ -19,11 +19,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tune_online_rl import SAMPLER
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-
+from stable_baselines3.common.env_util import make_vec_env
 
 FIRST_DAY = 7
-
-
 def get_cli_args():
     """Create CLI parser and return parsed arguments"""
     parser = argparse.ArgumentParser()
@@ -37,14 +35,14 @@ def get_cli_args():
     parser.add_argument(
         '--start_train_day',
         type=int,
-        default=0,
-        help="starting window"
+        default=7,
+        help="start train day"
     )
     parser.add_argument(
         '--end_train_day',
         type=int,
-        default=0,
-        help="starting window"
+        default=7,
+        help="end train day"
     )
     
     parser.add_argument(
@@ -203,17 +201,12 @@ class TradeSimulatorTrainer:
         }
     
     def train_agent_with_seed(self, seed=None, learn_params={}):
-        curr_tb_log_path = None if self.tb_log_path is None else os.path.join(self.tb_log_path, f"seed_{seed}")
-        
-        def make_env():
-            env_kwargs = self.env_args.copy()
-            env_kwargs["seed"] = seed
-            return build_env(TradeSimulator, env_kwargs, gpu_id=self.gpu_id)
-        env = DummyVecEnv([make_env for _ in range(self.n_envs)])
-        # env = build_env(TradeSimulator, train_env_args, gpu_id=self.gpu_id)
-        # env = DummyVecEnv([env])
-        
-        
+        curr_tb_log_path = None if self.tb_log_path is None else os.path.join(self.tb_log_path, f"seed_{seed}")        
+        env = make_vec_env(
+            lambda: build_env(TradeSimulator, {**self.env_args, "seed": seed}, gpu_id=self.gpu_id),
+            n_envs=self.n_envs,
+            seed=seed
+        )        
         agent = self.agent_class("MlpPolicy", env, verbose=0, seed=seed, tensorboard_log=curr_tb_log_path, **self.params)
                 
         agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=self.show_progress, **learn_params)
@@ -310,7 +303,7 @@ class TradeSimulatorTrainer:
                 
             # returns = np.diff(net_assets) / net_assets[:-1]
             # final_sharpe_ratio = sharpe_ratio(returns)
-            
+        
         mean_total_reward = total_reward.mean()
         return to_python_number(mean_total_reward), 0
 
@@ -320,8 +313,8 @@ def main():
     # agent_class = DQN  # PPO, DQN
     agent_class = DQN if args.agent == 'DQN' else PPO
     
-    start_train_day = args.start_day_train
-    end_train_day = args.end_day_train
+    start_train_day = args.start_train_day
+    end_train_day = args.end_train_day
     window=f'{start_train_day}_{end_train_day}'
     
     print(f"Training {agent_class.__name__} with window {window}")
@@ -344,11 +337,11 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = f'experiments/train/{agent_class.__name__}_window_{window}_{timestamp}' if args.out_dir is None else args.out_dir
     tb_log_path = f'{out_dir}/tb_logs'
-    num_ignore_step = 60
-    step_gap = 2
-    max_step = (4800 - num_ignore_step) // step_gap
-    # max_step=480
     
+    # num_ignore_step = 60
+    # step_gap = 2
+    # max_step = (4800 - num_ignore_step) // step_gap
+    max_step=480
     eval_max_step=480
     
     trainer = TradeSimulatorTrainer(
@@ -365,7 +358,7 @@ def main():
         deterministic_eval=True,
         n_episodes=50,
         num_eval_sims=50,
-        n_envs=1,
+        n_envs=4,
         n_seeds=args.n_seeds,
     )
     

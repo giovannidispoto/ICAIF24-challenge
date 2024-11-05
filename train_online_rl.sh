@@ -1,9 +1,14 @@
 #!/bin/sh
-window=3
+start_train_day=10
+end_train_day=10
 agent="PPO"
-n_seeds=3
-
-python train_online_rl.py --window "$window" --agent "$agent" --n_seeds "$n_seeds"
+n_seeds=1
+python train_online_rl.py \
+  --start_train_day $start_train_day \
+  --end_train_day $end_train_day \
+  --agent $agent \
+  --n_seeds $n_seeds \
+  --progress
 
 
 #!/bin/sh

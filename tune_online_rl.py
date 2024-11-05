@@ -14,6 +14,8 @@ import optuna
 from stable_baselines3.common.base_class import BaseAlgorithm
 from datetime import datetime
 from sbx import PPO, DQN, SAC
+from stable_baselines3.common.env_util import make_vec_env
+
 
 def get_cli_args():
     """Create CLI parser and return parsed arguments"""
@@ -161,16 +163,12 @@ class TradeSimulatorOptimizer:
             "eval_sequential": False,
         }
         
-    def train_agent(self, model_params, learn_params = {}, seed=123):
-        
-        # env = build_env(self.env_class, env_args, self.gpu_id)
-        def make_env():
-            env_args = self.env_args.copy()
-            env_args["seed"] = seed
-            return build_env(TradeSimulator, env_args, gpu_id=self.gpu_id)
-
-        env = DummyVecEnv([make_env for _ in range(self.n_envs)])
-        
+    def train_agent(self, model_params, learn_params = {}, seed=123):        
+        env = make_vec_env(
+            lambda: build_env(TradeSimulator, {**self.env_args, "seed": seed}, gpu_id=self.gpu_id),
+            n_envs=self.n_envs,
+            seed=seed
+        ) 
         
         agent = self.agent_class("MlpPolicy", env, verbose=0, device="cpu", seed=seed, **model_params)
         agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=self.show_progress, **learn_params)
@@ -317,17 +315,17 @@ if __name__ == "__main__":
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     out_dir = f'{args.out_dir}_{timestamp}'
     plot_dir = f'{out_dir}/plots'
     storage = f'sqlite:///{out_dir}/optuna_study.db'
 
-    num_ignore_step = 60
-    step_gap = 2
-    slippage = 7e-7
-    max_step = (4800 - num_ignore_step) // step_gap
-    eval_max_step = max_step
-    # max_steps = 480
+    # num_ignore_step = 60
+    # step_gap = 2
+    # slippage = 7e-7
+    # max_step = (4800 - num_ignore_step) // step_gap
+    max_step = 480
+    eval_max_step = 480
     
     optimizer = TradeSimulatorOptimizer(
         agent_class=agent_class,
@@ -345,7 +343,7 @@ if __name__ == "__main__":
         n_trials=args.n_trials,
         storage=storage,
         show_progress=args.progress,
-        n_episodes=50,
+        n_episodes=500,
         num_eval_sims=50,
         n_envs=4,
     )
