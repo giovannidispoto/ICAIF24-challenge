@@ -41,6 +41,20 @@ def get_cli_args():
     )
     
     parser.add_argument(
+        '--start_day_val',
+        type=int,
+        default=7,
+        help="starting day to train (included) "
+    )
+
+    parser.add_argument(
+        '--end_day_val',
+        type=int,
+        default=15,
+        help="ending day to train (included) "
+    )
+    
+    parser.add_argument(
         '--n_trials',
         type=int,
         default=50,
@@ -61,6 +75,12 @@ def get_cli_args():
         type=str,
         default="."
     )
+    parser.add_argument(
+        '--progress',
+        action='store_true',
+        help='Enable progress output',
+        default=False
+    )
 
     return parser.parse_args()
 
@@ -78,7 +98,10 @@ def interquartile_mean(data: np.ndarray, q_min: int = 25, q_max: int = 75) -> fl
 class TradeSimulatorOptimizer:
     def __init__(self, agent_class: BaseAlgorithm, device, out_dir, plot_dir,
                  num_eval_sims, n_envs,
-                 start_day_train, end_day_train, max_step, eval_max_step = None, deterministic_eval=True,
+                 start_day_train, end_day_train, 
+                 start_day_val, end_day_val,
+                 max_step, eval_max_step = None, deterministic_eval=True,
+                 show_progress=False,
                  n_episodes = 1000, storage = None, n_seeds=5, n_trials=100, n_days_val = 1, gpu_id = -1):
         self.agent_class = agent_class
         self.device = device
@@ -87,6 +110,12 @@ class TradeSimulatorOptimizer:
         self.plot_dir = plot_dir
         self.start_day_train = start_day_train
         self.end_day_train = end_day_train
+        self.start_day_val = start_day_val
+        self.end_day_val = end_day_val
+        assert self.start_day_train <= self.end_day_train, "start_day_train must be less than end_day_train"
+        assert self.start_day_val <= self.end_day_val, "start_day_val must be less than end_day_val"
+        assert self.end_day_train < self.start_day_val or self.end_day_val < self.start_day_train, "No overlap between train and val days"
+
         self.n_days_val = n_days_val
         self.max_step = max_step
         self.eval_max_step = eval_max_step if eval_max_step is not None else max_step
@@ -98,8 +127,7 @@ class TradeSimulatorOptimizer:
         self.n_actions = 3
         self.num_eval_sims=num_eval_sims
         self.deterministic_eval = deterministic_eval
-        self.env_class = TradeSimulator
-        self.eval_env_class = EvalTradeSimulator
+        self.show_progress = show_progress
         
         self.env_args = self._initialize_env_args()
         self._setup_directories()
@@ -128,24 +156,24 @@ class TradeSimulatorOptimizer:
             "max_position": 1,
             "slippage": 7e-7,
             "step_gap": 2,
-            "env_class": self.env_class,
+            "env_class": TradeSimulator,
             "days": [self.start_day_train, self.end_day_train],
             "eval_sequential": False,
         }
         
     def train_agent(self, model_params, learn_params = {}, seed=123):
-        env_args = self.env_args.copy()
-        env_args["seed"] = seed
         
         # env = build_env(self.env_class, env_args, self.gpu_id)
         def make_env():
+            env_args = self.env_args.copy()
+            env_args["seed"] = seed
             return build_env(TradeSimulator, env_args, gpu_id=self.gpu_id)
 
         env = DummyVecEnv([make_env for _ in range(self.n_envs)])
         
         
         agent = self.agent_class("MlpPolicy", env, verbose=0, device="cpu", seed=seed, **model_params)
-        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=False, **learn_params)
+        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=self.show_progress, **learn_params)
         return agent
     
     def evaluate_agent(self, agent, days, seed=None):
@@ -223,9 +251,8 @@ class TradeSimulatorOptimizer:
             for seed in self.seeds:
                 agent = self.train_agent(model_params, {}, seed=seed)
                 
-                day_eval = self.end_day_train + 1
-
-                reward, sharpe_ratio = self.evaluate_agent(agent, [day_eval, day_eval], seed=seed)
+                val_days = [self.start_day_val, self.end_day_val]
+                reward, sharpe_ratio = self.evaluate_agent(agent, val_days, seed=seed)
                 train_reward, train_sharpe_ratio = self.evaluate_agent(agent, [self.start_day_train, self.end_day_train], seed=seed)
                 
                 print(f"seed: {seed}, reward: {reward}, train_reward: {train_reward}, sharpe_ratio: {sharpe_ratio}, train_sharpe_ratio: {train_sharpe_ratio}")
@@ -243,19 +270,19 @@ class TradeSimulatorOptimizer:
             trial.set_user_attr("sharpe_ratios_train", sharpe_ratios_train)
             
             print(rewards)
-            print(sharpe_ratios)
+            # print(sharpe_ratios)
             rewards = np.array(rewards)
             mean_rewards, median_rewards, iqm_rewards = np.mean(rewards), np.median(rewards), interquartile_mean(rewards)
             print(f"Mean: {mean_rewards}, Median: {median_rewards}, IQM: {iqm_rewards}")
             
             
-            sharpe_ratios = [x for x in sharpe_ratios if x != np.inf] # Ignoring inf values   
-            sharpe_ratios = np.array(sharpe_ratios) if len(sharpe_ratios) > 0 else np.array([0])
+            # sharpe_ratios = [x for x in sharpe_ratios if x != np.inf] # Ignoring inf values   
+            # sharpe_ratios = np.array(sharpe_ratios) if len(sharpe_ratios) > 0 else np.array([0])
             
-            mean_sr, median_sr, iqm_sr = np.mean(sharpe_ratios), np.median(sharpe_ratios), interquartile_mean(sharpe_ratios)
-            print(f"Mean: {mean_sr}, Median: {median_sr}, IQM: {iqm_sr}")
+            # mean_sr, median_sr, iqm_sr = np.mean(sharpe_ratios), np.median(sharpe_ratios), interquartile_mean(sharpe_ratios)
+            # print(f"Mean: {mean_sr}, Median: {median_sr}, IQM: {iqm_sr}")
             
-            return iqm_sr
+            return mean_rewards
         
         print(f"Optimizing {self.agent_class.__name__} hyperparameters")
         print(f'Using seeds: {self.seeds}')
@@ -310,11 +337,14 @@ if __name__ == "__main__":
         plot_dir=plot_dir,
         start_day_train=args.start_day_train,
         end_day_train=args.end_day_train,
+        start_day_val=args.start_day_val,
+        end_day_val=args.end_day_val,
         max_step=max_step,
         eval_max_step=eval_max_step,
         n_seeds=args.n_seeds,
         n_trials=args.n_trials,
         storage=storage,
+        show_progress=args.progress,
         n_episodes=50,
         num_eval_sims=50,
         n_envs=4,

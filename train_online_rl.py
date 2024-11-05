@@ -35,11 +35,18 @@ def get_cli_args():
     )
     
     parser.add_argument(
-        '--window',
+        '--start_train_day',
         type=int,
         default=0,
         help="starting window"
     )
+    parser.add_argument(
+        '--end_train_day',
+        type=int,
+        default=0,
+        help="starting window"
+    )
+    
     parser.add_argument(
         '--n_seeds',
         type=int,
@@ -54,6 +61,12 @@ def get_cli_args():
         '--out_dir',
         type=str,
         default=None
+    )
+    parser.add_argument(
+        '--progress',
+        action='store_true',
+        help='Enable progress output',
+        default=False
     )
 
     return parser.parse_args()
@@ -129,10 +142,13 @@ def plot_heatmap(results: np.ndarray, training_days: list[list[tuple[int, int]]]
 
 
 class TradeSimulatorTrainer:
-    def __init__(self, agent_class, device, start_day, end_day, out_dir, 
+    def __init__(self, agent_class, device, 
+                 start_day, end_day,
+                 out_dir, 
                  max_step, params,
                  num_eval_sims,
                  n_envs,
+                show_progress=False,
                  tb_log_path=None,
                  eval_max_step=None,
                  n_episodes=50,
@@ -152,6 +168,7 @@ class TradeSimulatorTrainer:
         self.n_episodes = n_episodes
         self.n_envs = n_envs
         self.num_eval_sims=num_eval_sims
+        self.show_progress = show_progress
         self.deterministic_eval = deterministic_eval
         self.val_days = list(range(7, 17))
         
@@ -186,12 +203,12 @@ class TradeSimulatorTrainer:
         }
     
     def train_agent_with_seed(self, seed=None, learn_params={}):
-        train_env_args = self.env_args.copy()
-        train_env_args["seed"] = seed
         curr_tb_log_path = None if self.tb_log_path is None else os.path.join(self.tb_log_path, f"seed_{seed}")
         
         def make_env():
-            return build_env(TradeSimulator, train_env_args, gpu_id=self.gpu_id)
+            env_kwargs = self.env_args.copy()
+            env_kwargs["seed"] = seed
+            return build_env(TradeSimulator, env_kwargs, gpu_id=self.gpu_id)
         env = DummyVecEnv([make_env for _ in range(self.n_envs)])
         # env = build_env(TradeSimulator, train_env_args, gpu_id=self.gpu_id)
         # env = DummyVecEnv([env])
@@ -199,7 +216,7 @@ class TradeSimulatorTrainer:
         
         agent = self.agent_class("MlpPolicy", env, verbose=0, seed=seed, tensorboard_log=curr_tb_log_path, **self.params)
                 
-        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=True, **learn_params)
+        agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=self.show_progress, **learn_params)
         
         # Plot tb plots
         if curr_tb_log_path is not None:
@@ -302,12 +319,12 @@ def main():
     device = torch.device("cpu")
     # agent_class = DQN  # PPO, DQN
     agent_class = DQN if args.agent == 'DQN' else PPO
-    window = args.window
     
-    start_day = window + FIRST_DAY
-    end_day = start_day
+    start_train_day = args.start_day_train
+    end_train_day = args.end_day_train
+    window=f'{start_train_day}_{end_train_day}'
     
-    print(f"Training {agent_class.__name__} with window {window}, start_day {start_day}, end_day {end_day}")
+    print(f"Training {agent_class.__name__} with window {window}")
     
     exp_name_dir = f"{agent_class.__name__}_window_{window}"
     
@@ -337,17 +354,18 @@ def main():
     trainer = TradeSimulatorTrainer(
         agent_class=agent_class,
         device=device,
-        start_day=start_day,
-        end_day=end_day,
+        start_day=start_train_day,
+        end_day=end_train_day,
         out_dir=out_dir,
         max_step=max_step,
         eval_max_step=eval_max_step,
         tb_log_path=tb_log_path,
         params=model_params,
+        show_progress=args.progress,
         deterministic_eval=True,
-        n_episodes=100,
+        n_episodes=50,
         num_eval_sims=50,
-        n_envs=4,
+        n_envs=1,
         n_seeds=args.n_seeds,
     )
     
@@ -368,8 +386,9 @@ def main():
     for key, results in results_dict.items():
         decimal_places, use_e_notation = (5, False) if key in ['sharpe_ratios'] else (2, False)
         
-        train_day_idx = start_day - FIRST_DAY
-        training_days = [[(train_day_idx, train_day_idx)] for _ in range(results.shape[0])]   
+        start_train_day_idx = start_train_day - FIRST_DAY
+        end_train_day_idx = end_train_day - FIRST_DAY
+        training_days = [[(start_train_day_idx, end_train_day_idx)] for _ in range(results.shape[0])]   
         xticklabels = [f'Day {i+FIRST_DAY}' for i in range(results.shape[1])] 
         yticklabels = [f'Seed {trainer.seeds[i]}' for i in range(results.shape[0])]
         plot_heatmap(results, training_days,
@@ -380,7 +399,7 @@ def main():
 
         results_mean_seeds = np.mean(results, axis=0)
         results_std_seeds = np.std(results, axis=0)
-        single_train_day = [[(train_day_idx, train_day_idx)]]
+        single_train_day = [[(start_train_day_idx, end_train_day_idx)]]
         plot_heatmap(results_mean_seeds.reshape(1, -1), single_train_day,
                     title=f'Mean {key} heatmap',
                      xticklabels=xticklabels, yticklabels=['Mean Seed'],
