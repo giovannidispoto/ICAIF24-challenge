@@ -6,6 +6,7 @@ from metrics import sharpe_ratio
 from sample_online_rl import SAMPLER
 from task1_eval import to_python_number, trade, winloss
 from trade_simulator import EvalTradeSimulator, TradeSimulator
+from stable_baselines3.common.vec_env import DummyVecEnv
 import optuna
 import argparse
 import os
@@ -75,7 +76,8 @@ def interquartile_mean(data: np.ndarray, q_min: int = 25, q_max: int = 75) -> fl
 
 
 class TradeSimulatorOptimizer:
-    def __init__(self, agent_class: BaseAlgorithm, device, out_dir, plot_dir, 
+    def __init__(self, agent_class: BaseAlgorithm, device, out_dir, plot_dir,
+                 num_eval_sims, n_envs,
                  start_day_train, end_day_train, max_step, eval_max_step = None, deterministic_eval=True,
                  n_episodes = 1000, storage = None, n_seeds=5, n_trials=100, n_days_val = 1, gpu_id = -1):
         self.agent_class = agent_class
@@ -89,11 +91,12 @@ class TradeSimulatorOptimizer:
         self.max_step = max_step
         self.eval_max_step = eval_max_step if eval_max_step is not None else max_step
         self.n_episodes = n_episodes
+        self.n_envs=n_envs
         self.n_seeds = n_seeds
         self.n_trials = n_trials
         self.storage = storage
-        self.n_envs = 1
         self.n_actions = 3
+        self.num_eval_sims=num_eval_sims
         self.deterministic_eval = deterministic_eval
         self.env_class = TradeSimulator
         self.eval_env_class = EvalTradeSimulator
@@ -116,14 +119,14 @@ class TradeSimulatorOptimizer:
     def _initialize_env_args(self):
         return {
             "env_name": "TradeSimulator-v0",
-            "num_envs": self.n_envs,
+            "num_envs": 1,
+            "num_sims": 1,
             "max_step": self.max_step,
             "state_dim": 10,
             "action_dim": 3,
             "if_discrete": True,
             "max_position": 1,
             "slippage": 7e-7,
-            "num_sims": 1,
             "step_gap": 2,
             "env_class": self.env_class,
             "days": [self.start_day_train, self.end_day_train],
@@ -133,7 +136,14 @@ class TradeSimulatorOptimizer:
     def train_agent(self, model_params, learn_params = {}, seed=123):
         env_args = self.env_args.copy()
         env_args["seed"] = seed
-        env = build_env(self.env_class, env_args, self.gpu_id)
+        
+        # env = build_env(self.env_class, env_args, self.gpu_id)
+        def make_env():
+            return build_env(TradeSimulator, env_args, gpu_id=self.gpu_id)
+
+        env = DummyVecEnv([make_env for _ in range(self.n_envs)])
+        
+        
         agent = self.agent_class("MlpPolicy", env, verbose=0, device="cpu", seed=seed, **model_params)
         agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=False, **learn_params)
         return agent
@@ -142,65 +152,65 @@ class TradeSimulatorOptimizer:
         eval_env_args = self.env_args.copy()
         eval_env_args.update({
             "eval": True,
-            "num_envs": 1,
-            "num_sims": 1,
             "days": days,
+            "num_sims": self.num_eval_sims,
+            "num_envs": 1,
             "max_step": self.eval_max_step,
             "env_class": EvalTradeSimulator,
-            "seed": seed,
+            "seed": seed
         })
         eval_env = build_env(EvalTradeSimulator, eval_env_args, gpu_id=self.gpu_id)
         
-        last_price = 0        
-        current_btc = 0
-        starting_cash = 1e6
+        # last_price = 0        
+        # current_btc = 0
+        # starting_cash = 1e6
 
-        cash = [starting_cash]
-        btc_assets = [0]
-        net_assets = [starting_cash]
+        # cash = [starting_cash]
+        # btc_assets = [0]
+        # net_assets = [starting_cash]
 
-        positions = []
-        action_ints = []
-        correct_pred = []
-        current_btcs = [current_btc]
+        # positions = []
+        # action_ints = []
+        # correct_pred = []
+        # current_btcs = [current_btc]
         
         state, _ = eval_env.reset(seed=seed)
                 
-        total_reward = 0
+        total_reward = torch.zeros(self.num_eval_sims, dtype=torch.float32, device=self.device)
         for _ in range(eval_env.max_step):
             tensor_state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
             action, _ = agent.predict(tensor_state, deterministic=self.deterministic_eval)
-            action_int = action.item() - 1        
-            
-            
+            # action_int = action.item() - 1                        
             state, reward, terminated, truncated, _ = eval_env.step(action=action)
-            reward_int = reward.item()
+            total_reward += reward
+            # reward_int = reward.item()
             
-            price = eval_env.price_ary[eval_env.step_i, 2].to(self.device)
-            new_cash, current_btc = trade(
-                action_int, price, cash[-1], current_btc
-            )
+            # price = eval_env.price_ary[eval_env.step_i, 2].to(self.device)
+            # new_cash, current_btc = trade(
+            #     action_int, price, cash[-1], current_btc
+            # )
             
-            cash.append(new_cash)
-            btc_assets.append((current_btc * price).item())
-            net_assets.append(
-                (to_python_number(btc_assets[-1]) + to_python_number(new_cash))
-            )
-            # Upadting trading history
-            positions.append(eval_env.position)
-            action_ints.append(action_int)
-            current_btcs.append(current_btc)
-            correct_pred.append(winloss(action_int, last_price, price))
-            # Updating last state and price
-            last_price = price
-            total_reward += reward_int
-            if terminated or truncated:
+            # cash.append(new_cash)
+            # btc_assets.append((current_btc * price).item())
+            # net_assets.append(
+            #     (to_python_number(btc_assets[-1]) + to_python_number(new_cash))
+            # )
+            # # Upadting trading history
+            # positions.append(eval_env.position)
+            # action_ints.append(action_int)
+            # current_btcs.append(current_btc)
+            # correct_pred.append(winloss(action_int, last_price, price))
+            # # Updating last state and price
+            # last_price = price
+            # total_reward += reward_int
+            if terminated.any() or truncated:
                 break
+                
+            # returns = np.diff(net_assets) / net_assets[:-1]
+            # final_sharpe_ratio = sharpe_ratio(returns)
             
-        returns = np.diff(net_assets) / net_assets[:-1]
-        final_sharpe_ratio = sharpe_ratio(returns)
-                    
-        return total_reward, final_sharpe_ratio
+        mean_total_reward = total_reward.mean()
+        return to_python_number(mean_total_reward), 0
                     
     def optimize_hyperparameters(self):
         def objective(trial):
@@ -306,6 +316,8 @@ if __name__ == "__main__":
         n_trials=args.n_trials,
         storage=storage,
         n_episodes=50,
+        num_eval_sims=50,
+        n_envs=4,
     )
     optimizer.create_study()
     optimizer.run()
