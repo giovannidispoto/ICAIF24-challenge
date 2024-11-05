@@ -1,8 +1,8 @@
+import os
 import numpy as np
 import torch
+
 from agent.base import AgentBase
-from sbx import DQN
-import os
 from collections import Counter
 from stable_baselines3.common.base_class import BaseAlgorithm
 

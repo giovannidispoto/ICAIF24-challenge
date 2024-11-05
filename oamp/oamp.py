@@ -35,6 +35,7 @@ class OAMP:
         # Initializing OAMP stats
         self.stats = {
             "losses": [],
+            "rewards": [],
             "weights": [],
         }
 
@@ -51,6 +52,7 @@ class OAMP:
     ):
         # Updating agents' rewards
         self.agents_rewards.append(agents_rewards)
+        self.stats['rewards'].append(agents_rewards)
         # Updating agents' weights
         if self.t % self.agents_weights_upd_freq == 0:
             agents_weights = self.update_agents_weights()
@@ -63,39 +65,43 @@ class OAMP:
     def update_agents_weights(
         self,
     ):
-        # Computing agents' losses
-        l_t = self.compute_agents_losses()
-        # Computing agents' regrets estimates
-        m_t = get_m(
-            self.l_tm1,
-            self.n_tm1,
-            self.w_tm1,
-            self.agents_count,
-        )
-        # Computing agents' selection probabilites
-        p_t = get_p(m_t, self.w_tm1, self.n_tm1)
-        # Computing agents' regrets
-        r_t = get_r(l_t, p_t)
-        # Computing agents' regrets estimatation error
-        self.cum_err += (r_t - m_t) ** 2
-        # Updating agents' learning rates
-        n_t = upd_n(self.cum_err, self.agents_count)
-        # Updating agents' weights
-        w_t = upd_w(
-            self.w_tm1,
-            self.n_tm1,
-            n_t,
-            r_t,
-            m_t,
-            self.agents_count,
-        )
-        self.l_tm1 = l_t
-        self.n_tm1 = n_t
-        self.w_tm1 = w_t
-        self.p_tm1 = p_t
-        self.stats["losses"].append(l_t)
-        self.stats["weights"].append(p_t)
-        return p_t
+        if self.t % self.agents_weights_upd_freq == 0:
+            # Computing agents' losses
+            l_t = self.compute_agents_losses()
+            # Computing agents' regrets estimates
+            m_t = get_m(
+                self.l_tm1,
+                self.n_tm1,
+                self.w_tm1,
+                self.agents_count,
+            )
+            # Computing agents' selection probabilites
+            p_t = get_p(m_t, self.w_tm1, self.n_tm1)
+            # Computing agents' regrets
+            r_t = get_r(l_t, p_t)
+            # Computing agents' regrets estimatation error
+            self.cum_err += (r_t - m_t) ** 2
+            # Updating agents' learning rates
+            n_t = upd_n(self.cum_err, self.agents_count)
+            # Updating agents' weights
+            w_t = upd_w(
+                self.w_tm1,
+                self.n_tm1,
+                n_t,
+                r_t,
+                m_t,
+                self.agents_count,
+            )
+            self.l_tm1 = l_t
+            self.n_tm1 = n_t
+            self.w_tm1 = w_t
+            self.p_tm1 = p_t
+            self.stats["losses"].append(l_t)
+            self.stats["weights"].append(self.p_tm1)
+        else:
+            self.stats["losses"].append(np.zeros(len(self.agents_count)))
+            self.stats["weights"].append(self.p_tm1)
+        return self.p_tm1
 
     def compute_agents_losses(
         self,
@@ -129,15 +135,19 @@ class OAMP:
         save_path: str,
     ):
         agents = [f"Agent {n}" for n in range(self.agents_count)]
+        agents_rewards = np.array(self.stats["rewards"])
         agents_losses = np.array(self.stats["losses"])
         agents_weights = np.array(self.stats["weights"])
-        fig, axs = plt.subplots(2, 1, figsize=(10, 10))
-        axs[0].plot(agents_losses.cumsum(axis=0))
-        axs[0].set_title("Agents' Losses")
+        fig, axs = plt.subplots(3, 1, figsize=(10, 15))
+        axs[0].plot(agents_rewards.cumsum(axis=0))
+        axs[0].set_title("Agents' Rewards")
         axs[0].grid()
-        axs[1].stackplot(np.arange(len(agents_weights)), np.transpose(agents_weights))
+        axs[1].plot(agents_losses.cumsum(axis=0))
+        axs[1].set_title("Agents' Losses")
         axs[1].grid()
-        axs[1].set_title("Agents' Weights")
+        axs[2].stackplot(np.arange(len(agents_weights)), np.transpose(agents_weights))
+        axs[2].grid()
+        axs[2].set_title("Agents' Weights")
         fig.legend(labels=agents, loc="center left", bbox_to_anchor=(0.95, 0.5))
         fig.savefig(os.path.join(save_path, "oamp_stats.png"), bbox_inches="tight")
         plt.close(fig)

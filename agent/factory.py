@@ -2,6 +2,7 @@ import os
 from agent.fqi import AgentFQI
 from agent.online_rl import AgentOnlineRl
 from sample_online_rl import ONLINE_RL_NAME_TO_CLASS_DICT
+
 PROJECT_FOLDER = "./"
 
 AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")

@@ -18,8 +18,8 @@ PROJECT_FOLDER = "."
 
 AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
 os.makedirs(AGENTS_FOLDER, exist_ok=True)
-RUNS_FOLDER = os.path.join(PROJECT_FOLDER, "runs")
-os.makedirs(RUNS_FOLDER, exist_ok=True)
+EXPERIMENTS_FOLDER = os.path.join(PROJECT_FOLDER, "experiments")
+os.makedirs(EXPERIMENTS_FOLDER, exist_ok=True)
 
 
 def to_python_number(x):
@@ -70,7 +70,7 @@ class EnsembleEvaluator:
         oamp_args,
         args: Config,
     ):
-        self.save_path = os.path.join(RUNS_FOLDER, run_name)
+        self.save_path = os.path.join(EXPERIMENTS_FOLDER, run_name)
         os.makedirs(self.save_path, exist_ok=True)
         # Initializing trading env
         self.args = args
