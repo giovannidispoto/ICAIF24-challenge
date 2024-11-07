@@ -41,25 +41,6 @@ def trade(action, price, cur_cash, cur_btc):
         new_btc = cur_btc
     return new_cash, new_btc
 
-def trade_ms(action, price, cur_cash, cur_btc):
-    new_cash = cur_cash.clone()
-    new_btc = cur_btc.clone()
-
-    # Action 1: Buy Bitcoin
-    buy_mask = (action == 1)  # Boolean mask for buying
-    new_cash[buy_mask] = cur_cash[buy_mask] - price  # Subtract price from cash where action is buy
-    new_btc[buy_mask] = cur_btc[buy_mask] + 1  # Increment BTC by 1 where action is buy
-
-    # Action -1: Sell Bitcoin
-    sell_mask = (action == -1)  # Boolean mask for selling
-    new_cash[sell_mask] = cur_cash[sell_mask] + price  # Add price to cash where action is sell
-    new_btc[sell_mask] = cur_btc[sell_mask] - 1  # Decrement BTC by 1 where action is sell
-
-    # Action 0: Hold (no change needed, already initialized)
-    # new_cash and new_btc are already the current values for this case
-
-    return new_cash, new_btc
-
 
 def winloss(action, last_price, price):
     if action > 0:
@@ -78,36 +59,6 @@ def winloss(action, last_price, price):
             correct_pred = 0
     else:
         correct_pred = 0
-    return correct_pred
-
-def winloss_ms(action, last_price, price):
-    # Initialize the correct_pred tensor
-    correct_pred = torch.zeros_like(action, dtype=torch.int)
-
-    # Conditions for buying (action > 0)
-    buy_mask = (action > 0)
-    correct_pred[buy_mask] = torch.where(
-        last_price < price, 
-        torch.tensor(1, dtype=torch.int, device=action.device),
-        torch.where(
-            last_price > price,
-            torch.tensor(-1, dtype=torch.int, device=action.device),
-            torch.tensor(0, dtype=torch.int, device=action.device)
-        )
-    )
-
-    # Conditions for selling (action < 0)
-    sell_mask = (action < 0)
-    correct_pred[sell_mask] = torch.where(
-        last_price < price,
-        torch.tensor(-1, dtype=torch.int, device=action.device),
-        torch.where(
-            last_price > price,
-            torch.tensor(1, dtype=torch.int, device=action.device),
-            torch.tensor(0, dtype=torch.int, device=action.device)
-        )
-    )
-    # Conditions for holding (action == 0) are already initialized to 0
     return correct_pred
 
 
@@ -142,6 +93,7 @@ class EnsembleEvaluator:
         for agent_name, agent_info in self.agents_info.items():
             self.agents_names.append(agent_name)
             self.agents.append(AgentsFactory.load_agent(agent_info))
+        print(f"loaded {self.agents_names}")
 
     def multi_trade(self):
         # Initializing trading history
@@ -150,67 +102,61 @@ class EnsembleEvaluator:
         correct_pred = []
         current_btcs = [self.current_btc]
         # Initializing last state and price
-        last_state, _ = self.trade_env.reset(eval_sequential=True)
+        # last_state, _ = self.trade_env.reset(eval_sequential=True)
         last_price = 0
         # Initializing trading agents rewards
         agents_rewards_old = [0] * len(self.agents)
         # Trading
-        return_ = 0
+        envs = []
+        last_states = []
+        for i in range(len(self.agents)):
+            env = build_env(self.args.env_class, self.args.env_args, gpu_id=self.args.gpu_id)
+            envs.append(env)
+            last_state, _ = envs[i].reset(eval_sequential=True)
+            last_states.append(last_state)
+
+        return_ = np.zeros(len(self.agents))
         for step_ in tqdm(range(self.trade_env.max_step)):
             agents_actions = []
             agents_rewards = []
             # Collecting actions from each agent
-            for agent in self.agents:
+            states = []
+            for i, agent in enumerate(self.agents):
                 # Computing agent curr action
-                agent_action = agent.action(last_state)
+                agent_action = agent.action(last_states[i])
+                # agent_action = np.random.choice(3)
                 agents_actions.append(agent_action)
                 # Computing agent last reward
-                agent_env = copy.deepcopy(self.trade_env)
-                _, agent_reward, _, _, _ = agent_env.step(agent_action)
-                agents_rewards.append(agent_reward.item())
-            # Computing ensemble action
-            # print(agents_rewards_old)
-            action = self._ensemble_action(agents_actions, agents_rewards_old)
-            agents_rewards_old = agents_rewards
-            action_int = action - 1
-            state, reward, _, _, _ = self.trade_env.step(action=action)
-            # Upadting trading portfolio
-            price = self.trade_env.price_ary[self.trade_env.step_i, 2].to(self.device)
-            new_cash, self.current_btc = trade(
-                action_int, price, self.cash[-1], self.current_btc
-            )
-            self.cash.append(new_cash)
-            self.btc_assets.append((self.current_btc * price).item())
-            self.net_assets.append(
-                (to_python_number(self.btc_assets[-1]) + to_python_number(new_cash))
-            )
-            # Upadting trading history
-            positions.append(self.trade_env.position)
-            action_ints.append(action_int)
-            current_btcs.append(self.current_btc)
-            correct_pred.append(winloss(action_int, last_price, price))
-            # Updating last state and price
-            last_state = state
-            last_price = price
-            return_ += reward
+                # agent_env = copy.deepcopy(self.trade_env)
+                state, agent_reward, _, _, _ = envs[i].step(agent_action)
+                # state , rewards, terminals, truncates, info_dict = self.trade_env.step(np.array(agents_actions))
+                states.append(state)
+                agents_rewards.append(agent_reward)
+            # print(agents_rewards)
+            self.ensemble.stats['rewards'].append(agents_rewards)
+
+
+            last_states = states
+            # last_price = price
+            # return_ += rewards.numpy()
             if step_ % 100 == 0:
-                np.save(
-                    os.path.join(self.save_path, "positions.npy"),
-                    positions,
-                )
-                np.save(
-                    os.path.join(self.save_path, "net_assets.npy"),
-                    np.array(self.net_assets),
-                )
-                np.save(
-                    os.path.join(self.save_path, "btc_positions.npy"),
-                    np.array(self.btc_assets),
-                )
-                np.save(
-                    os.path.join(self.save_path, "correct_predictions.npy"),
-                    np.array(correct_pred),
-                )
-                self.ensemble.plot_stats(self.save_path)
+                # np.save(
+                #     os.path.join(self.save_path, "positions.npy"),
+                #     positions,
+                # )
+                # np.save(
+                #     os.path.join(self.save_path, "net_assets.npy"),
+                #     np.array(self.net_assets),
+                # )
+                # np.save(
+                #     os.path.join(self.save_path, "btc_positions.npy"),
+                #     np.array(self.btc_assets),
+                # )
+                # np.save(
+                #     os.path.join(self.save_path, "correct_predictions.npy"),
+                #     np.array(correct_pred),
+                # )
+                self.ensemble.plot_stats(self.save_path, independent=True, agent_names=self.agents_names)
 
         # Saving trading history
         np.save(
@@ -237,7 +183,7 @@ class EnsembleEvaluator:
         print(f"Sharpe Ratio: {final_sharpe_ratio}")
         print(f"Max Drawdown: {final_max_drawdown}")
         print(f"Return over Max Drawdown: {final_roma}")
-        self.ensemble.plot_stats(self.save_path)
+        self.ensemble.plot_stats(self.save_path, independent=True, agent_names=self.agents_names)
         return final_sharpe_ratio, return_
 
     def _ensemble_action(self, actions, rewards):
@@ -254,7 +200,7 @@ def run_evaluation(
 
     gpu_id =-1  # Get GPU_ID from command line arguments
     if env_args is None:
-        num_sims = 1
+        num_sims = 1 #len(agents_info.keys())
         num_ignore_step = 60
         step_gap = 2
         max_step = (4800 - num_ignore_step) // step_gap
@@ -318,19 +264,25 @@ if __name__ == "__main__":
     }
     agent_dir = "results_agents/results_agents/completed/results/saved_agents/"
     AGENTS_INFO = {}
-    # for i in range(5):
-    #     AGENTS_INFO[f"dqn_{i}"] = {"type": "dqn", "file": agent_dir + f"DQN_window_{i}"}
-    #     AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"PPO_window_{i}"}
+    for i in range(5):
+        AGENTS_INFO[f"dqn_{i}"] = {"type": "dqn", "file": agent_dir + f"DQN_window_{i}"}
+        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"PPO_window_{i}"}
     agent_dir = "ppos_new/"
     AGENTS_INFO = {}
     for i in range(2):
-        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{i + 1}"}
+        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{1}"}
     # for i in range(3):
     #     AGENTS_INFO[f"fqi_{i}"] = {"type": "fqi", "file": agent_dir + f"fqi/{i+1}.pkl"}
 
-    OAMP_ARGS = {
+    agent_dir = "ppos/"
+    AGENTS_INFO = {}
+    # for i in range(5):
+    #     AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{i+1}"}
+    AGENTS_INFO[f"lo"] = {"type": "lo", "file": ""}
+    AGENTS_INFO[f"sho"] = {"type": "sho", "file": ""}
+    AGENTS_INFO[f"random"] = {"type": "random", "file": ""}
 
-    }
-    RUN_NAME = "oamp_7_nuove_features"
+    OAMP_ARGS = {}
+    RUN_NAME = "oamp_7_baselines"
     days = [7, 7]
     run_evaluation(RUN_NAME, AGENTS_INFO, OAMP_ARGS, days=days)

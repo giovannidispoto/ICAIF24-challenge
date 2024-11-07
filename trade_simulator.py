@@ -16,14 +16,14 @@ class TradeSimulator(gymnasium.Env):
         slippage=5e-5,
         max_position=2,
         step_gap=1,
-        gamma = 0.99,
+        gamma=0.99,
         delay_step=1,
         num_ignore_step=60,
         device=th.device("cpu"),
         days = None,
         eval = False,
         gpu_id=-1,
-        seed = 1234,
+        seed=1234,
     ):
         self.device = th.device(f"cuda:{gpu_id}") if gpu_id >= 0 else device
         self.num_sims = num_sims
@@ -160,7 +160,8 @@ class TradeSimulator(gymnasium.Env):
         mid_price = self.price_ary[step_is_cpu, 2].to(self.device)
 
         """get action_int"""
-        truncated = self.step_i >= (self.max_step * self.step_gap)
+        next_step_i = self.step_i + self.step_gap
+        truncated = next_step_i >= (self.max_step * self.step_gap)
         if truncated: #se ho raggiunto il limite di step, chiudo la posizione
             action_int = -old_position
         else:
@@ -235,7 +236,8 @@ class TradeSimulator(gymnasium.Env):
         self.action_int = action_int  # update the action_int
 
         state = self.get_state(step_is_cpu)
-        info_dict = {"asset_v": new_asset, 'mid': mid_price,'new_cash': new_cash, 'old_cash':old_cash, "action_exec": action_int, "position": new_position}
+        info_dict = {"asset_v": new_asset, 'mid': mid_price,'new_cash': new_cash, 'old_cash':old_cash,
+                     "action_exec": action_int, "position": new_position}
         if truncated:
             terminal = th.ones_like(self.position, dtype=th.bool)
             state, _ = self.reset()
