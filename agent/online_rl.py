@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import numpy as np
-from scipy import stats
 import torch
 from agent.base import AgentBase
 from stable_baselines3 import PPO, DQN
