@@ -46,7 +46,6 @@ class Ensemble:
         # gpu_id = 0
         self.device = th.device(f"cuda" if th.cuda.is_available() else "cpu")
 
-
         self.trade_env  = build_env(TradeSimulator, env_args, -1)
 
 
