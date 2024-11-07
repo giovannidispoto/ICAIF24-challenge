@@ -205,11 +205,11 @@ class TradeSimulator(gymnasium.Env):
 
         # stop_loss_thresh = mid_price * self.stop_loss_rate
         # se lo scarto tra il best price e il mid price è superiore alla treshold chiudo la posizione
-        # stop_loss_mask1 = th.logical_and(direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh))
-        # stop_loss_mask2 = th.logical_and(direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh))
-        # stop_loss_mask = th.logical_or(stop_loss_mask1, stop_loss_mask2)
-        # if stop_loss_mask.sum() > 0:
-        #     action_int[stop_loss_mask] = -old_position[stop_loss_mask]
+        stop_loss_mask1 = th.logical_and(direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh))
+        stop_loss_mask2 = th.logical_and(direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh))
+        stop_loss_mask = th.logical_or(stop_loss_mask1, stop_loss_mask2)
+        if stop_loss_mask.sum() > 0:
+            action_int[stop_loss_mask] = -old_position[stop_loss_mask]
 
         """get new_position via action_int"""
         new_position = old_position + action_int
