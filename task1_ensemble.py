@@ -1,5 +1,7 @@
+import json
 import os
 import time
+from typing import Optional
 import torch as th
 import numpy as np
 
@@ -20,45 +22,7 @@ AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
 os.makedirs(AGENTS_FOLDER, exist_ok=True)
 
 
-def evaluate_agent(agent: AgentBase, args, eval_sequential: bool = False, verbose: int = 0):
-    num_eval_sims = args.get("num_sims", 1)
-    if verbose:
-        print('Num eval sims: ', num_eval_sims)
-    device = th.device("cpu")
 
-    eval_env = build_env(args["env_class"], args, gpu_id=-1)
-    seed = args.get("seed", None)
-    
-
-    state, _ = eval_env.reset(seed=seed, eval_sequential=eval_sequential)
-    
-    total_reward = th.zeros(num_eval_sims, dtype=th.float32, device=device)
-    rewards = th.empty((0, num_eval_sims), dtype=th.float32, device=device)
-    
-        
-    for i in range(eval_env.max_step):
-        
-        action = agent.action(state)
-        action = th.from_numpy(action).to(device)            
-        state, reward, terminated, truncated, _ = eval_env.step(action=action)
-        
-        rewards = th.cat((rewards, reward.unsqueeze(0)), dim=0)
-            
-        total_reward += reward
-
-        if terminated.any() or truncated:
-            break
-    
-    
-    mean_total_reward = total_reward.mean().item()
-    std_simulations = total_reward.std().item() if num_eval_sims > 1 else 0.
-    mean_std_steps = rewards.std(dim=0).mean().item()
-    
-    if verbose:
-        print(f'Sims mean: {mean_total_reward} Sims std: {std_simulations}, Mean std steps: {mean_std_steps}')
-    
-    
-    return mean_total_reward, std_simulations, mean_std_steps
 
 class Ensemble:
     def __init__(self, starting_cash, hyperparameters, env_args):
@@ -105,22 +69,86 @@ class Ensemble:
                 if agent_type == "ppo":
                     env_args['n_envs'] = 4
                 AgentsFactory.train({"type": agent_type, "file":  self.hyperparameters[agent_type][agent_name]['file'], "model_args": self.hyperparameters[agent_type][agent_name]["model_args"]}, env_args=env_args)
+    
+    def evaluate_agent(self, agent: AgentBase, eval_env, eval_sequential: bool = False, verbose: int = 0):
+        num_eval_sims = eval_env.num_sims
+
+        state, _ = eval_env.reset(seed=eval_env.seed, eval_sequential=eval_sequential)
+        
+        total_reward = th.zeros(num_eval_sims, dtype=th.float32, device=self.device)
+        rewards = th.empty((0, num_eval_sims), dtype=th.float32, device=self.device)
+        
+            
+        for i in range(eval_env.max_step):
+            
+            action = agent.action(state)
+            action = th.from_numpy(action).to(self.device)            
+            state, reward, terminated, truncated, _ = eval_env.step(action=action)
+            
+            rewards = th.cat((rewards, reward.unsqueeze(0)), dim=0)
+                
+            total_reward += reward
+
+            if terminated.any() or truncated:
+                break
+        
+        
+        mean_total_reward = total_reward.mean().item()
+        std_simulations = total_reward.std().item() if num_eval_sims > 1 else 0.
+        mean_std_steps = rewards.std(dim=0).mean().item()
+        
+        if verbose:
+            print(f'Sims mean: {mean_total_reward} Sims std: {std_simulations}, Mean std steps: {mean_std_steps}')
+        
+        
+        return mean_total_reward, std_simulations, mean_std_steps
 
 
-    def model_selection(self, agents: list[AgentBase], days: list[int] = list(range(7, 17))):
-        env_args = self.env_args
+    def model_selection(self, agent_path: str, num_sims: int = 10, eval_sequential: bool = False, save_path: Optional[str] = None):
+        eval_env_args = self.env_args.copy()
+        eval_env_args["num_envs"] = 1
+        eval_env_args["num_sims"] = num_sims
+        eval_env_args["eval_sequential"] = eval_sequential
+        eval_env_args["eval"] = True
+        eval_env_args["env_class"] = EvalTradeSimulator
+        
+        agent_file_names = [x for x in os.listdir(agent_path) if x.split('_')[0] in ['ppo', 'fqi', 'dqn']]
+        
+        print(f'All found agents: {agent_file_names}')
+        results = {}
+        for w in range(1, 8):
+            curr_agents = [a for a in agent_file_names if f'_w{w-1}.' in a] # Get agents trained of the previous day
+            
+            curr_eval_env_args = eval_env_args.copy()
+            curr_eval_env_args["days"] = [w + 7, w + 7]
+            eval_env = build_env(curr_eval_env_args["env_class"], curr_eval_env_args, gpu_id=-1)
+            
+            results[w] = {
+                "agents": [],
+                "mean_total_rewards": [],
+                "std_simulations": []
+            }
+            for agent_file in curr_agents:
+                agent_type = agent_file.split('_')[0]
+                agent = AgentsFactory.load_agent({"type": agent_type, "file": os.path.join(agent_path, agent_file)})
+                print(f"Evaluating {agent_file.split('.')[0]} on window {w}")
+                mean_total_reward, std_simulations, mean_std_steps = self.evaluate_agent(agent, eval_env, eval_sequential, verbose=1)
+                results[w]["agents"].append(agent_file)
+                results[w]["mean_total_rewards"].append(mean_total_reward)
+                results[w]["std_simulations"].append(std_simulations)
+                results[w]["mean_std_steps"] = mean_std_steps
+                # print(f'Agent: {agent_file} Mean Total Reward: {mean_total_reward} Std Simulations: {std_simulations} Mean std steps: {mean_std_steps}')
+            if len(results[w]["agents"]) > 0:
+                best_idx = np.argmax(results[w]["mean_total_rewards"])
+                results[w]["best_agent"] = results[w]["agents"][best_idx]
+                results[w]["best_mean_total_reward"] = results[w]["mean_total_rewards"][best_idx]
+        
+        if save_path is not None:
+            with open(save_path, "w") as file:
+                json.dump(results, file, indent=4)
+            
+            
 
-        results = []
-        for agent in agents:
-            agent_days_result = []
-            for day in days:
-                curr_agent_eval_args = env_args.copy()
-                curr_agent_eval_args["days"] = [day, day]
-
-                mean_total_reward, _, _ = evaluate_agent(agent, curr_agent_eval_args, verbose=1)
-                agent_days_result.append(mean_total_reward)
-            results.append(np.array(agent_days_result))
-        results = np.array(results)
         return results
 
 
@@ -160,7 +188,8 @@ def run(hyperparameters, log_rules=False):
         hyperparameters,
         env_args
     )
-    ensemble_env.ensemble_train()
+    # ensemble_env.ensemble_train()
+    ensemble_env.model_selection(AGENTS_FOLDER, num_sims=10, eval_sequential=False, save_path=f"{AGENTS_FOLDER}/model_selection_results.json")
 
 
 if __name__ == "__main__":
