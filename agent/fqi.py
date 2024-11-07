@@ -31,8 +31,7 @@ class AgentFQI(AgentBase):
         max_depth = args.get('max_depth', 20)
         min_split = args.get('min_samples_split', np.random.randint(low=10000, high=100000))
         n_jobs = args.get('n_jobs', 10)
-
-        seed = args['seed']
+        seed = args.get('seed', np.random.randint(10000))
 
         self.algorithm = FQI(mdp=env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
                              regressor_type=ExtraTreesRegressor, random_state=seed, n_estimators=n_estimators,
