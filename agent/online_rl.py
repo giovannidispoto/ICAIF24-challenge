@@ -43,12 +43,7 @@ class AgentOnlineRl(AgentBase):
     
     
     def load(self):
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(f'Model path {self.model_path} does not exist')
-            
-        seeds_dir = os.listdir(self.model_path)
-        print(f'Loading {len(seeds_dir)} seeds, {seeds_dir}')
-        self.agents = [self.agent_class.load(os.path.join(self.model_path, seed_dir)) for seed_dir in seeds_dir]
+        self.agents = [self.agent_class.load(os.path.join(self.model_path))]
         
         
     def train(self,
