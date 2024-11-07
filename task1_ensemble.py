@@ -78,7 +78,7 @@ class Ensemble:
     
    
     def agent_evaluation(self, agent: AgentBase, eval_env, seed=0):
-        state, _ = eval_env.reset(seed=seed, _if_random=True)
+        state, _ = eval_env.reset(seed=seed, _if_random=True, _if_sequential=False)
         returns = th.zeros(eval_env.num_sims, dtype=th.float32, device=self.device)
             
         for _ in range(eval_env.max_step):
@@ -116,8 +116,8 @@ def run():
     }
 
     ensemble_method = Ensemble(env_args)
-    # ensemble_method.agents_training()
-    ensemble_method.agents_selection(num_sims=10)
+    ensemble_method.agents_training()
+    ensemble_method.agents_selection(num_sims=200)
 
 
 if __name__ == "__main__":

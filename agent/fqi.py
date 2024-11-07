@@ -16,7 +16,7 @@ BASELINES_POLICIES = {
     'short_only_policy': ShortOnlyBaseline(),
     'flat_only_policy': FlatOnlyBaseline()
 }
-EPISODES_FQI = 1000
+FQI_EPISODES = 1000
 DATA_DIR = "./data/"
 
 
@@ -26,8 +26,8 @@ class AgentFQI(AgentBase):
         self,
         state: np.ndarray,
     ):
-        q_values = self.policy._q_values(state)
-        return np.argmax(q_values).item()
+        _, max_actions = self.policy.Q.max(state)
+        return np.array(max_actions)
     
     def load(
         self, 
@@ -127,7 +127,7 @@ class AgentFQI(AgentBase):
         env_args, 
         args,
     ):
-        env_args["num_sims"] = EPISODES_FQI
+        env_args["num_sims"] = FQI_EPISODES
         eval_env = build_env(TradeSimulator, env_args, -1)
         (
             state_actions, 
@@ -141,7 +141,7 @@ class AgentFQI(AgentBase):
                 sa, r, ns, a = self.generate_experience(
                     days_to_sample=env_args["days"],
                     env_args=env_args,
-                    episodes=EPISODES_FQI,
+                    episodes=FQI_EPISODES,
                     policy=policy,
                 )
                 if len(state_actions) > 0:

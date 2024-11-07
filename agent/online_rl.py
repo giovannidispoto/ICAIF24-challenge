@@ -16,6 +16,8 @@ ONLINE_RL_TYPES = {
     "dqn": DQN,
 }
 
+ONLINE_RL_EPISODES = 50
+
 
 class AgentOnlineRl(AgentBase):
     def __init__(
@@ -53,7 +55,7 @@ class AgentOnlineRl(AgentBase):
         env_args: dict,
         model_args: dict,
         learn_args: dict = {},
-        n_episodes: int = 2
+        n_episodes: int = ONLINE_RL_EPISODES
     ):
         days = env_args.get("days", None)
         assert days is not None and days[0] <= days[1] and days[0] >= 7 and days[1] <= 16, 'Correct days must be provided'            

@@ -99,7 +99,7 @@ class TradeSimulator(gymnasium.Env):
         num_sims = self.num_sims
         device = self.device
 
-        if _if_random:
+        if _if_random or len(self.step_is) > 1:
             i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
         else:
             if _if_sequential:

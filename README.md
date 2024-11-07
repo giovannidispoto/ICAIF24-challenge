@@ -40,16 +40,13 @@ The repository is organized as follows:
 ├── task_1_ensemble.py # Script for training, model selection and saving the Ensemble agents
 ├── task_1_eval.py: # Script for running the evaluation of the Ensemble with OAMP
 ├── requirements.txt: # Requirements needed to perform training and validation
-├── readme.md: # this readme file
+├── README.md: # this readme file
 ```
 
 To execute our ensemble agent, it is enough to run task_1_eval.py, as we have already added all 
 the configurations needed to load the agents of the ensemble and run OAMP. 
 You only need to specify the updated  BTC_1sec.csv and BTC_1sec_predict.npy relative to the evaluation
 period.
-
-
-
 
 
 
