@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import pickle
+from joblib import Parallel, delayed
 from train_fqi import read_dataset, generate_dataset, get_cli_args, prepare_dataset
 from erl_config import build_env
 from trade_simulator import TradeSimulator
@@ -13,7 +13,8 @@ n_train_days = 1
 data_dir = "./data_final"
 base_out_dir = '.'
 
-for window in range(n_windows):
+def train_window(window):
+    print(f"training window {window}")
     start_day_train = start_day + window
     end_day_train = start_day_train + n_train_days - 1
     sample_days_train = [start_day_train, end_day_train]
@@ -31,7 +32,6 @@ for window in range(n_windows):
         raise ValueError("No dataset!!")
 
     state_actions, rewards, next_states, absorbing = prepare_dataset(dfs)
-    actions_values = [0, 1, 2]
     np.random.seed()
     seed = np.random.randint(100000)
     max_steps = args.max_steps
@@ -57,7 +57,7 @@ for window in range(n_windows):
 
     out_dir = base_out_dir + f"/submission/trial_{window}_window/"
     agent.save(out_dir)
-    # model_name = out_dir + f'Policy_iter{iteration}.pkl'
-    # with open(model_name, 'wb+') as f:
-    #     pickle.dump(algorithm._policy, f)
+
+Parallel(n_jobs=n_windows)(delayed(train_window)(window) for window in range(n_windows))
+
 

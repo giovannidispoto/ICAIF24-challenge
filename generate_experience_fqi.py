@@ -18,9 +18,9 @@ def flat_only_policy(state):
 
 policies = {
     'random_policy': random_policy,
-    'long_only_policy':long_only_policy,
-    'short_only_policy':short_only_policy,
-    'flat_only_policy':flat_only_policy
+    'long_only_policy': long_only_policy,
+    'short_only_policy': short_only_policy,
+    'flat_only_policy': flat_only_policy
 }
 
 def generate_experience(days_to_sample, policy, max_steps=360, episodes=1000, save=False, testing=False,
@@ -41,7 +41,6 @@ def generate_experience(days_to_sample, policy, max_steps=360, episodes=1000, sa
         }
     pi = policies[policy]
     env = build_env(TradeSimulator, env_args, -1)
-    episode_rewards = []
     states = []
     actions = []
     rewards = []
