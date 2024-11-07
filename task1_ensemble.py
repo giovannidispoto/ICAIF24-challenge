@@ -46,7 +46,8 @@ class Ensemble:
         eval_env_args["num_sims"] = num_sims
         eval_env_args["env_class"] = EvalTradeSimulator
         
-        agents_file_names = [x for x in os.listdir(AGENTS_FOLDER) if x.split('_')[0] in AGENTS_TYPES]        
+        agents_file_names = [x for x in os.listdir(AGENTS_FOLDER) if x.split('_')[0] in AGENTS_TYPES]
+        
         results = {
             'best_agents':[]
         }
@@ -63,7 +64,6 @@ class Ensemble:
             for agent_file in curr_agents:
                 agent_type = agent_file.split('_')[0]
                 agent = AgentsFactory.load_agent({"type": agent_type, "file": agent_file})
-                print(f"Evaluating {agent_file.split('.')[0]} on window {w+1}")
                 returns_mean, returns_std = self.agent_evaluation(agent, eval_env)
                 results[w]["agents"].append(agent_file)
                 results[w]["returns_mean"].append(returns_mean)
@@ -80,9 +80,6 @@ class Ensemble:
     def agent_evaluation(self, agent: AgentBase, eval_env, seed=0):
         state, _ = eval_env.reset(seed=seed, _if_random=True)
         returns = th.zeros(eval_env.num_sims, dtype=th.float32, device=self.device)
-        
-        print(state.shape)
-        print(eval_env.step_is)
             
         for _ in range(eval_env.max_step):
             action = agent.action(state)        
@@ -104,7 +101,6 @@ def run():
     slippage = 7e-7
 
     max_step = (4800 - num_ignore_step) // step_gap
-    max_step = 480
 
     env_args = {
         "env_name": "TradeSimulator-v0",
@@ -121,7 +117,7 @@ def run():
 
     ensemble_method = Ensemble(env_args)
     # ensemble_method.agents_training()
-    ensemble_method.agents_selection(num_sims=200)
+    ensemble_method.agents_selection(num_sims=10)
 
 
 if __name__ == "__main__":

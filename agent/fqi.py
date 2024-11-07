@@ -127,6 +127,7 @@ class AgentFQI(AgentBase):
         env_args, 
         args,
     ):
+        env_args["num_sims"] = EPISODES_FQI
         eval_env = build_env(TradeSimulator, env_args, -1)
         (
             state_actions, 
