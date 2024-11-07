@@ -93,14 +93,14 @@ class Ensemble:
         
         
         mean_total_reward = total_reward.mean().item()
-        std_simulations = total_reward.std().item() if num_eval_sims > 1 else 0.
+        std_total_reward = total_reward.std().item() if num_eval_sims > 1 else 0.
         mean_std_steps = rewards.std(dim=0).mean().item()
         
         if verbose:
-            print(f'Sims mean: {mean_total_reward} Sims std: {std_simulations}, Mean std steps: {mean_std_steps}')
+            print(f'Sims mean: {mean_total_reward} Sims std: {std_total_reward}, Mean std steps: {mean_std_steps}')
         
         
-        return mean_total_reward, std_simulations, mean_std_steps
+        return mean_total_reward, std_total_reward, mean_std_steps
 
 
     def model_selection(self, agent_path: str, num_sims: int = 10, eval_sequential: bool = False, save_path: Optional[str] = None):
@@ -146,12 +146,7 @@ class Ensemble:
             with open(save_path, "w") as file:
                 json.dump(results, file, indent=4)
             
-            
-
         return results
-
-
-
 
 
 def run(hyperparameters, log_rules=False):
@@ -187,8 +182,9 @@ def run(hyperparameters, log_rules=False):
         hyperparameters,
         env_args
     )
-    # ensemble_env.ensemble_train()
-    ensemble_env.model_selection(AGENTS_FOLDER, num_sims=10, eval_sequential=False, save_path=f"{AGENTS_FOLDER}/model_selection_results.json")
+    ensemble_env.ensemble_train()
+    
+    # model_selection_results = ensemble_env.model_selection(AGENTS_FOLDER, num_sims=10, eval_sequential=False, save_path=f"{AGENTS_FOLDER}/model_selection_results.json")
 
 
 if __name__ == "__main__":
