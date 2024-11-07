@@ -1,6 +1,6 @@
 #!/bin/sh
-start_train_day=10
-end_train_day=10
+start_train_day=9
+end_train_day=9
 agent="PPO"
 n_seeds=1
 python train_online_rl.py \
@@ -10,11 +10,32 @@ python train_online_rl.py \
   --n_seeds $n_seeds \
   --progress
 
+#!/bin/sh
+start_train_day=14
+end_train_day=14
+agent="PPO"
+n_seeds=3
+python train_online_rl.py \
+  --start_train_day $start_train_day \
+  --end_train_day $end_train_day \
+  --agent $agent \
+  --n_seeds $n_seeds \
+  --progress \
+  --force_default
+
 
 #!/bin/sh
 agent="PPO"
 n_seeds=1
-for window in $(seq 0 7)
+start_day=7
+for window in $(seq 2 4)
 do
-  python train_online_rl.py --window "$window" --agent "$agent" --n_seeds "$n_seeds"
+  python train_online_rl.py \
+    --start_train_day $((window+start_day)) \
+    --end_train_day $((window+start_day)) \
+    --agent $agent \
+    --n_seeds $n_seeds \
+    --progress &
 done
+
+wait

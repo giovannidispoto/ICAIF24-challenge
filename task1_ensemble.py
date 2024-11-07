@@ -291,5 +291,5 @@ if __name__ == "__main__":
 
     run(
         "ensemble_teamname",
-        [AgentD3QN, AgentDoubleDQN, AgentDoubleDQN, AgentTwinD3QN],
+        [AgentD3QN],
     )

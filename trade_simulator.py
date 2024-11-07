@@ -53,6 +53,7 @@ class TradeSimulator(gymnasium.Env):
 
         # data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
         data_df = pd.read_parquet(args.parquet_path)
+        
         data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
         if days is not None:
             data_df = data_df[
@@ -203,11 +204,11 @@ class TradeSimulator(gymnasium.Env):
 
         # stop_loss_thresh = mid_price * self.stop_loss_rate
         # se lo scarto tra il best price e il mid price è superiore alla treshold chiudo la posizione
-        stop_loss_mask1 = th.logical_and(direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh))
-        stop_loss_mask2 = th.logical_and(direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh))
-        stop_loss_mask = th.logical_or(stop_loss_mask1, stop_loss_mask2)
-        if stop_loss_mask.sum() > 0:
-            action_int[stop_loss_mask] = -old_position[stop_loss_mask]
+        # stop_loss_mask1 = th.logical_and(direction_mask1, (self.best_price - mid_price).gt(self.stop_loss_thresh))
+        # stop_loss_mask2 = th.logical_and(direction_mask2, (mid_price - self.best_price).gt(self.stop_loss_thresh))
+        # stop_loss_mask = th.logical_or(stop_loss_mask1, stop_loss_mask2)
+        # if stop_loss_mask.sum() > 0:
+        #     action_int[stop_loss_mask] = -old_position[stop_loss_mask]
 
         """get new_position via action_int"""
         new_position = old_position + action_int
@@ -252,8 +253,7 @@ class TradeSimulator(gymnasium.Env):
         return self._step(action, _if_random=True)
 
     def get_state(self, step_is_cpu):
-        factor_ary = self.factor_ary[step_is_cpu, :].to(self.device)
-
+        factor_ary = self.factor_ary[step_is_cpu, :].to(self.device)        
         return th.concat(
             (
                 (self.position.float() / self.max_position)[:, None],

@@ -345,7 +345,7 @@ if __name__ == "__main__":
         show_progress=args.progress,
         n_episodes=500,
         num_eval_sims=50,
-        n_envs=4,
+        n_envs=1,
     )
     optimizer.create_study()
     optimizer.run()
