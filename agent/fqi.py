@@ -22,8 +22,7 @@ class AgentFQI(AgentBase):
             self,
             policy_path: str = None,
     ):
-        if policy_path is not None:
-            self.load(policy_path)
+        self.policy_path = policy_path
 
     def action(
             self,
@@ -139,9 +138,8 @@ class AgentFQI(AgentBase):
         for i in range(3):
             self.policy.Q._regressors[i].n_jobs = 1
 
-    def load(self, policy_path):
-        self.policy = pickle.load(open(policy_path, "rb"))
-        # print(self.policy)
+    def load(self):
+        self.policy = pickle.load(open(self.policy_path, "rb"))
         for i in range(3):
             self.policy.Q._regressors[i].n_jobs = 1
 

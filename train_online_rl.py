@@ -182,6 +182,9 @@ class TradeSimulatorTrainer:
         self.val_days = list(range(7, 17))
         # self.val_days = [7, 8]
         
+        self.policy = "MlpLstmPolicy" if self.agent_class.__name__ == "RecurrentPPO" else "MlpPolicy"
+        print(f'Using policy: {self.policy}')
+        
         if seeds is None:
             np.random.seed()
             self.seeds = [np.random.randint(2**32 - 1, dtype="int64").item() for i in range(n_seeds)]
@@ -224,7 +227,7 @@ class TradeSimulatorTrainer:
             agent = self.agent_class.load(self.load_model_path)
         else:
             print(f'Training with seed: {seed} on days: [{self.start_day}, {self.end_day}]')
-            agent = self.agent_class("MlpPolicy", env, verbose=0, seed=seed, tensorboard_log=curr_tb_log_path, **self.params)
+            agent = self.agent_class(self.policy, env, verbose=0, seed=seed, tensorboard_log=curr_tb_log_path, **self.params)
             agent.learn(total_timesteps=self.max_step * self.n_episodes, progress_bar=self.show_progress, **learn_params)
             
             # Plot tb plots
@@ -295,12 +298,17 @@ class TradeSimulatorTrainer:
         actions = th.empty((0, self.num_eval_sims), dtype=th.long, device=self.device)
 
         state, _ = eval_env.reset(seed=seed, eval_sequential=self.eval_seq)
+        print('State shape: ', state.shape)
         
         total_reward = th.zeros(self.num_eval_sims, dtype=th.float32, device=self.device)
         rewards = th.empty((0, self.num_eval_sims), dtype=th.float32, device=self.device)
         
         
         print('Max step: ', eval_env.max_step)
+        
+        n_eval_env = 1
+        episode_starts = np.ones((n_eval_env, self.num_eval_sims), dtype=bool)
+        lstm_states = None
         for i in range(eval_env.max_step):
             tensor_state = th.as_tensor(state, dtype=th.float32, device=self.device)
             
@@ -310,8 +318,10 @@ class TradeSimulatorTrainer:
             # action = np.full((self.num_eval_sims,), 2) # Long
             # action = np.full((self.num_eval_sims,), 0) # Short
             # action = np.full((self.num_eval_sims,), 1) # Hold
-            
-            action, _ = agent.predict(tensor_state, deterministic=self.deterministic_eval)
+            if self.agent_class.__name__ == "RecurrentPPO":
+                action, lstm_states = agent.predict(tensor_state, state=lstm_states, episode_start=episode_starts, deterministic=True)
+            else:
+                action, _ = agent.predict(tensor_state, deterministic=self.deterministic_eval)
             
             action = th.from_numpy(action).to(self.device)            
             state, reward, terminated, truncated, _ = eval_env.step(action=action)
@@ -337,7 +347,8 @@ class TradeSimulatorTrainer:
             # # Updating last state and price
             last_price = price
             total_reward += reward
-            
+
+            episode_starts = terminated.cpu().numpy()
             if terminated.any() or truncated:
                 break
         
@@ -402,14 +413,14 @@ def main():
     max_step=480
     eval_max_step=480
     
-    # load_model_path = ROOT_DIR / "agents" / "ppo" / "new_tuning" / f"PPO_window_{start_train_day}_{end_train_day}"
-    # if not os.path.exists(load_model_path):
-    #     raise FileNotFoundError(f'Model path {load_model_path} does not exist')
-    # seeds_dir = [seed_dir for seed_dir in os.listdir(load_model_path)]
-    # assert len(seeds_dir) == 1
-    # load_model_path = os.path.join(load_model_path, seeds_dir[0])
+    load_model_path = ROOT_DIR / "agents" / "ppo" / "new_tuning" / f"PPO_window_{start_train_day}_{end_train_day}"
+    if not os.path.exists(load_model_path):
+        raise FileNotFoundError(f'Model path {load_model_path} does not exist')
+    seeds_dir = [seed_dir for seed_dir in os.listdir(load_model_path)]
+    assert len(seeds_dir) == 1
+    load_model_path = os.path.join(load_model_path, seeds_dir[0])
     
-    load_model_path = None
+    # load_model_path = None
     
     trainer = TradeSimulatorTrainer(
         agent_class=agent_class,
@@ -422,9 +433,9 @@ def main():
         tb_log_path=tb_log_path,
         params=model_params,
         show_progress=args.progress,
-        deterministic_eval=False,
+        deterministic_eval=True,
         load_model_path= load_model_path,
-        n_episodes=700,
+        n_episodes=300,
         num_eval_sims=50,
         eval_seq = False,
         n_envs=4,

@@ -26,9 +26,9 @@ python train_online_rl.py \
 
 #!/bin/sh
 agent="PPO"
-n_seeds=3
+n_seeds=1
 start_day=7
-for window in $(seq 2 8)
+for window in $(seq 2 2)
 do
   python train_online_rl.py \
     --start_train_day $((window+start_day)) \

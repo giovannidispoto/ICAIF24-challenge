@@ -38,8 +38,12 @@ class AgentOnlineRl(AgentBase):
         state: np.ndarray,
     ):  
         tensor_state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
-        actions = [agent.predict(tensor_state, deterministic=self.deterministic)[0][0] for agent in self.agents]        
-        return Counter(actions).most_common(1)[0][0]
+        
+        results = np.empty((len(self.agents), state.shape[0]))
+        for i, agent in enumerate(self.agents):
+            results[i, :] = agent.predict(tensor_state, deterministic=self.deterministic)[0]
+        
+        return results[0]
     
     
     def load(self):
