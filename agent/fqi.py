@@ -44,7 +44,11 @@ class AgentFQI(AgentBase):
         with open(policy_path, 'wb+') as f:
             pickle.dump(self.policy, f)
     
-    def read_dataset(self, sample_days, policies_to_read=None, data_dir='./data/'):
+    def read_dataset(
+        self, 
+        sample_days, 
+        policies_to_read=None,
+    ):
         policies_unread = []
         state_actions = []
         rewards = []
@@ -55,7 +59,7 @@ class AgentFQI(AgentBase):
             policies_to_read = BASELINES_POLICIES.keys()
         for p in policies_to_read:
             try:
-                path_name = f"{data_dir}/{p}_{sample_days}.pkl"
+                path_name = f"{DATA_DIR}/{p}_{sample_days}.pkl"
                 data = pickle.load(open(path_name, "rb"))
                 state_actions.append(data["state_actions"])
                 rewards.append(data["rewards"])
@@ -70,7 +74,15 @@ class AgentFQI(AgentBase):
             absorbing_state = np.concatenate(absorbing_state)
         return state_actions, rewards, next_states, absorbing_state, policies_unread
 
-    def generate_experience(self, env_args, days_to_sample, policy, max_steps=360, episodes=1000, save=True, data_dir='./data/'):
+    def generate_experience(
+        self, 
+        env_args, 
+        days_to_sample, 
+        policy, 
+        max_steps=360, 
+        episodes=1000, 
+        save=True,
+    ):
         pi = BASELINES_POLICIES[policy]
         env = build_env(TradeSimulator, env_args, -1)
         states = []
@@ -81,7 +93,7 @@ class AgentFQI(AgentBase):
         s, _ = env.reset()
         for step in range(max_steps):
             states.append(s.numpy())
-            a = pi.action(s)
+            a = pi(s)
             s, r, done, truncated, info = env.step(a)
             actions.append(a)
             rewards.append(r.numpy())
@@ -96,8 +108,8 @@ class AgentFQI(AgentBase):
         next_states = np.concatenate(next_states)
         absorbing_state = np.concatenate(absorbing_state)
 
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+        if not os.path.exists(DATA_DIR):
+            os.makedirs(DATA_DIR)
         if save:
             data = {
                 "state_actions": state_actions,
@@ -105,22 +117,33 @@ class AgentFQI(AgentBase):
                 "next_states": next_states,
                 "absorbing_state": absorbing_state
             }
-            file_name = f'{data_dir}/{policy}_{days_to_sample}.pkl'
+            file_name = f'{DATA_DIR}/{policy}_{days_to_sample}.pkl'
             with open(file_name, 'wb+') as f:
                 pickle.dump(data, f)
         return state_actions, rewards, next_states, absorbing_state
 
-    def train(self, env_args, args):
+    def train(
+        self, 
+        env_args, 
+        args,
+    ):
         eval_env = build_env(TradeSimulator, env_args, -1)
-        state_actions, rewards, next_states, absorbing, policies_unread = self.read_dataset(env_args["days"],
-                                                                                             data_dir=DATA_DIR)
+        (
+            state_actions, 
+            rewards, 
+            next_states, 
+            absorbing, 
+            policies_unread,
+        ) = self.read_dataset(env_args["days"], data_dir=DATA_DIR)
         if len(policies_unread) > 0:
             for policy in policies_unread:
-                sa, r, ns, a = self.generate_experience(days_to_sample=env_args["days"],
-                                                         env_args=env_args,
-                                                         episodes=EPISODES_FQI,
-                                                         policy=policy,
-                                                         data_dir=DATA_DIR)
+                sa, r, ns, a = self.generate_experience(
+                    days_to_sample=env_args["days"],
+                    env_args=env_args,
+                    episodes=EPISODES_FQI,
+                    policy=policy,
+                    data_dir=DATA_DIR
+                )
                 if len(state_actions) > 0:
                     state_actions = np.concatenate([state_actions, sa], axis=0)
                     rewards = np.concatenate([rewards, r], axis=0)
@@ -140,10 +163,19 @@ class AgentFQI(AgentBase):
         n_jobs = args.get('n_jobs', 10)
         seed = args.get('seed', np.random.randint(10000))
 
-        self.algorithm = FQI(mdp=eval_env, policy=pi, actions=actions_values, batch_size=5, max_iterations=max_iterations,
-                             regressor_type=ExtraTreesRegressor, random_state=seed, n_estimators=n_estimators,
-                             n_jobs=n_jobs,
-                             max_depth=max_depth, min_samples_split=min_split)
+        self.algorithm = FQI(
+            mdp=eval_env, 
+            policy=pi, 
+            actions=actions_values, 
+            batch_size=5, 
+            max_iterations=max_iterations,
+            regressor_type=ExtraTreesRegressor, 
+            random_state=seed, 
+            n_estimators=n_estimators,
+            n_jobs=n_jobs,
+            max_depth=max_depth, 
+            min_samples_split=min_split,
+        )
 
         for i in range(max_iterations):
             self.algorithm._iter(
@@ -153,7 +185,6 @@ class AgentFQI(AgentBase):
                 absorbing,
             )
             self.policy = self.algorithm._policy
-        # prepare for faster eval
         for i in range(3):
             self.policy.Q._regressors[i].n_jobs = 1
 

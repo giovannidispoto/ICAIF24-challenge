@@ -14,13 +14,15 @@ os.makedirs(AGENTS_FOLDER, exist_ok=True)
 class AgentsFactory:
     @staticmethod
     def load_agent(agent_info):
-        if agent_info['type'] == 'fqi':
+        agent_type = agent_info['type']
+        agent_file = os.path.join(AGENTS_FOLDER, agent_info['file'])
+        if agent_type == 'fqi':
             agent = AgentFQI()
-            agent.load(agent_info['file'])
+            agent.load(agent_file)
             return agent
-        elif agent_info['type'] in ['dqn', 'ppo']:
-            agent = AgentOnlineRl(agent_info['type'])
-            agent.load(agent_info['file'])
+        elif agent_type in ['dqn', 'ppo']:
+            agent = AgentOnlineRl(agent_type)
+            agent.load(agent_file)
             return agent
         elif agent_info['type'] in ['lo']:
             return LongOnlyBaseline()

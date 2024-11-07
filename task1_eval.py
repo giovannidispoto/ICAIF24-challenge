@@ -108,10 +108,10 @@ class EnsembleEvaluator:
             # Collecting actions from each agent
             for ai, (agent, agent_env) in enumerate(zip(self.agents, self.agents_envs)):
                 # Computing agent current action 
-                agent_action = agent.action(agents_last_state[ai])
+                agent_action = np.random.choice([0,1,2])#agent.action(agents_last_state[ai])
                 # agents_actions.append(agent_action)
                 # Computing agent current reward
-                agent_state, agent_reward, _, info, = agent_env.step(agent_action)
+                agent_state, agent_reward, _, _, info, = agent_env.step(agent_action)
                 agents_actions.append(info['action'])
                 agents_rewards.append(agent_reward.item())
                 # Updating agent last state
@@ -120,7 +120,7 @@ class EnsembleEvaluator:
             action = self._ensemble_action(agents_actions, agents_rewards_old, reward)
             agents_rewards_old = agents_rewards
             action_int = action - 1
-            _, reward, _, info = self.trade_env.step(action=action)
+            _, reward, _, _, info = self.trade_env.step(action=action)
             # Upadting trading portfolio
             new_cash = info['new_cash']
             price = info['price']
@@ -181,7 +181,7 @@ def run_evaluation(
     num_sims = 1
     num_ignore_step = 60
     step_gap = 2
-    max_step = 480
+    max_step = 50
     max_position = 1
     slippage = 7e-7
     # max_ste not used but set to full len

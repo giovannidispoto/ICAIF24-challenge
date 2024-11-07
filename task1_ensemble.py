@@ -65,7 +65,7 @@ class Ensemble:
                 agent_type = agent_file.split('_')[0]
                 agent = AgentsFactory.load_agent({"type": agent_type, "file": os.path.join(AGENTS_FOLDER, agent_file)})
                 print(f"Evaluating {agent_file.split('.')[0]} on window {w}")
-                returns_mean, returns_std = self.agent_evaluation(agent, eval_env, verbose=1)
+                returns_mean, returns_std = self.agent_evaluation(agent, eval_env)
                 results[w]["agents"].append(agent_file)
                 results[w]["returns_mean"].append(returns_mean)
                 results[w]["returns_std"].append(returns_std)
@@ -78,9 +78,9 @@ class Ensemble:
             json.dump(results, file, indent=4)
     
    
-    def agent_evaluation(self, agent: AgentBase, eval_env):
+    def agent_evaluation(self, agent: AgentBase, eval_env, seed=0):
 
-        state, _ = eval_env.reset(seed=eval_env.seed, _if_sequential=False)
+        state, _ = eval_env.reset(seed=seed, _if_sequential=False)
         returns = th.zeros(eval_env.num_sims, dtype=th.float32, device=self.device)
             
         for _ in range(eval_env.max_step):

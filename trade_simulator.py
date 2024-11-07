@@ -214,9 +214,9 @@ class TradeSimulator(gymnasium.Env):
 
         state = self.get_state(step_is_cpu)
         info_dict = {
-            'price': mid_price.item(),
-            'new_cash': new_cash.item(),
-            "new_asset": new_asset.item(),
+            'price': mid_price.item() if len(mid_price)==1 else mid_price,
+            'new_cash': new_cash.item() if len(new_cash)==1 else new_cash,
+            "new_asset": new_asset.item() if len(new_asset)==1 else new_asset,
             "action": action_int + 1,
         }
         if truncated:
