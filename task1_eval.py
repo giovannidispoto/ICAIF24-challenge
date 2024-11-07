@@ -95,6 +95,7 @@ class EnsembleEvaluator:
         current_btcs = [self.current_btc]
         # Initializing last state and price
         last_price = 0.0
+        last_state = self.trade_env.reset()[0]
         agents_last_state = [agent_env.reset()[0] for agent_env in self.agents_envs]
         # Initializing trading agents rewards
         reward = 0.0
@@ -107,10 +108,8 @@ class EnsembleEvaluator:
             agents_rewards = []
             # Collecting actions from each agent
             for ai, (agent, agent_env) in enumerate(zip(self.agents, self.agents_envs)):
-                # Computing agent current action 
-                agent_action = np.random.choice([0,1,2])#agent.action(agents_last_state[ai])
-                # agents_actions.append(agent_action)
-                # Computing agent current reward
+                # Computing agent current action and reward
+                agent_action = agent.action(agents_last_state[ai])
                 agent_state, agent_reward, _, _, info, = agent_env.step(agent_action)
                 agents_actions.append(info['action'])
                 agents_rewards.append(agent_reward.item())
@@ -120,7 +119,7 @@ class EnsembleEvaluator:
             action = self._ensemble_action(agents_actions, agents_rewards_old, reward)
             agents_rewards_old = agents_rewards
             action_int = action - 1
-            _, reward, _, _, info = self.trade_env.step(action=action)
+            last_state, reward, _, _, info = self.trade_env.step(action=action)
             # Upadting trading portfolio
             new_cash = info['new_cash']
             price = info['price']
@@ -174,7 +173,7 @@ def run_evaluation(
     agents_info: dict,
     oamp_args: dict=None,
 ):
-    evaluation_steps_count = 1000
+    evaluation_steps_count = 5000
 
     gpu_id = -1
 
@@ -197,7 +196,7 @@ def run_evaluation(
         "max_position": max_position,
         "slippage": slippage,
         "dataset_path": "data/BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
-        "days": [15, 15],
+        "days": [7, 8],
     }
 
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
@@ -222,19 +221,19 @@ if __name__ == "__main__":
     AGENTS_INFO = {
         "agent_0": {
             'type': 'fqi',
-            'file': "FQI_window_0_v2/Policy_iter3.pkl",
+            'file': "fqi_w2.pkl",
         },
         "agent_1": {
             'type': 'fqi',
-            'file': "FQI_window_1_v2/Policy_iter3.pkl",
+            'file': "fqi_w3.pkl",
         },
         "agent_2": {
             'type': 'fqi',
-            'file': "FQI_window_2_v2/Policy_iter3.pkl",
+            'file': "fqi_w4.pkl",
         },
         "agent_3": {
             'type': 'fqi',
-            'file': "FQI_window_3_v2/Policy_iter3.pkl",
+            'file': "fqi_w5.pkl",
         },
     }
     OAMP_ARGS = {}

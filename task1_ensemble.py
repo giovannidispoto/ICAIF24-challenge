@@ -63,8 +63,7 @@ class Ensemble:
             }
             for agent_file in curr_agents:
                 agent_type = agent_file.split('_')[0]
-                agent = AgentsFactory.load_agent({"type": agent_type, "file": os.path.join(AGENTS_FOLDER, agent_file)})
-                print(f"Evaluating {agent_file.split('.')[0]} on window {w}")
+                agent = AgentsFactory.load_agent({"type": agent_type, "file": agent_file})
                 returns_mean, returns_std = self.agent_evaluation(agent, eval_env)
                 results[w]["agents"].append(agent_file)
                 results[w]["returns_mean"].append(returns_mean)
@@ -118,7 +117,7 @@ def run():
     }
 
     ensemble_method = Ensemble(env_args)
-    ensemble_method.agents_training()
+    # ensemble_method.agents_training()
     ensemble_method.agents_selection(num_sims=10)
 
 
