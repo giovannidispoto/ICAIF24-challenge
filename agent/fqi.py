@@ -29,8 +29,8 @@ class AgentFQI(AgentBase):
             self,
             state: np.ndarray,
     ):
-        q_values = self.policy._q_values(state)
-        return np.argmax(q_values).item()
+        q_values, max_actions = self.policy.Q.max(state)
+        return np.array(max_actions)
 
     def read_dataset(self, sample_days, policies_to_read=None, data_dir='./data/'):
         policies_unread = []
