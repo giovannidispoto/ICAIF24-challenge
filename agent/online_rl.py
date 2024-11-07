@@ -2,35 +2,40 @@ import os
 from pathlib import Path
 import typing
 import numpy as np
+from sb3_contrib import RecurrentPPO
 from scipy import stats
 import torch
-
 from agent.base import AgentBase
 from collections import Counter
-
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.env_util import make_vec_env
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 import matplotlib.pyplot as plt
-
 from erl_config import build_env
 from trade_simulator import TradeSimulator
+
+
+ONLINE_RL_NAME_TO_CLASS_DICT = {
+    "ppo": PPO,
+    "dqn": DQN,
+}
+
 
 class AgentOnlineRl(AgentBase):
     def __init__(
         self,
-        agent_class: typing.Union[PPO, DQN],
+        agent_class: str,
         deterministic: bool = True,
         device: str = "cpu",
         gpu_id: int = -1,
     ):
-        assert agent_class in [PPO, DQN], 'Only stable_baseline3 PPO and DQN are supported (prefer not to use sbx for now)'
+        assert agent_class in ['ppo', 'dqn'], 'Only stable_baseline3 PPO and DQN are supported (prefer not to use sbx for now)'
     
         self.device = torch.device(device)
         self.gpu_id = gpu_id
         self.deterministic = deterministic
-        self.agent_class = agent_class
-        self.agents = []
+        self.agent_class = ONLINE_RL_NAME_TO_CLASS_DICT[agent_class]
+        self.agent = None
 
     def action(
         self,
