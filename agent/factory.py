@@ -48,11 +48,12 @@ class AgentsFactory:
 
         elif agent_info['type'] in ['dqn', 'ppo']:
             agent_class = ONLINE_RL_NAME_TO_CLASS_DICT[agent_info['type']]
-            agent = AgentOnlineRl(agent_class, agent_info['file'])
+            agent = AgentOnlineRl(agent_class)
             try:
-                agent.load()
+                agent.load(agent_info['file'])
             except:
-                agent.train(env_args=env_args, model_args=agent_info['model_args'], save_path=agent_info['file'])
+                agent.train(env_args=env_args, model_args=agent_info['model_args'])
+                agent.save(agent_info['file'])
 
         else:
             raise NotImplementedError

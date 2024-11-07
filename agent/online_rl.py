@@ -20,7 +20,6 @@ class AgentOnlineRl(AgentBase):
     def __init__(
         self,
         agent_class: typing.Union[PPO, DQN],
-        model_path: str = None,
         deterministic: bool = True,
         device: str = "cpu",
         gpu_id: int = -1,
@@ -30,7 +29,6 @@ class AgentOnlineRl(AgentBase):
         self.device = torch.device(device)
         self.gpu_id = gpu_id
         self.deterministic = deterministic
-        self.model_path = model_path
         self.agent_class = agent_class
         self.agents = []
 
@@ -46,16 +44,15 @@ class AgentOnlineRl(AgentBase):
         
         return stats.mode(results, axis=0, keepdims=False)[0]    
     
-    def load(self):
-        self.agents = [self.agent_class.load(os.path.join(self.model_path))]
+    def load(self, model_path: str):
+        self.agents = [self.agent_class.load(os.path.join(model_path))]
         
         
     def train(self,
               env_args: dict,
               model_args: dict,
               learn_args: dict = {},
-              n_episodes: int = 200,
-              save_path: str = None):
+              n_episodes: int = 200):
         
         days = env_args.get("days", None)
         assert days is not None and days[0] <= days[1] and days[0] >= 7 and days[1] <= 16, 'Correct days must be provided'            
@@ -97,18 +94,11 @@ class AgentOnlineRl(AgentBase):
                 os.makedirs(tb_curr_plot_dir, exist_ok=True)
                 AgentOnlineRl._save_tensorboard_plots(tb_dir, tb_curr_plot_dir)
         
-        if save_path is not None:
-            AgentOnlineRl.save(agent, save_path)
-        
         return agent
     
-
-    @staticmethod
-    def save(agent: typing.Union[PPO, DQN], save_dir: str = "."):
-        #os.makedirs(save_dir, exist_ok=True)
-        agent.save(save_dir)
-        
-    
+    def save(self, save_path: str):
+        self.agents[0].save(save_path)
+            
     @staticmethod
     def _find_all_directories(path: str | Path) -> list[str]:
         if isinstance(path, str):
