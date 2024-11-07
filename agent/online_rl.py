@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import typing
 import numpy as np
+from scipy import stats
 import torch
 
 from agent.base import AgentBase
@@ -43,8 +44,7 @@ class AgentOnlineRl(AgentBase):
         for i, agent in enumerate(self.agents):
             results[i, :] = agent.predict(tensor_state, deterministic=self.deterministic)[0]
         
-        return results[0]
-    
+        return stats.mode(results, axis=0, keepdims=False)[0]    
     
     def load(self):
         if not os.path.exists(self.model_path):
