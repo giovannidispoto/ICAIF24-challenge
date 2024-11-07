@@ -1,11 +1,11 @@
 
 from ast import Dict
 from typing import Any, Callable, Union
-from sbx import DQN, PPO, SAC
-import flax.linen as nn # for JAX
-from stable_baselines3 import A2C
-from torch import nn as nnn
+
+from stable_baselines3 import A2C, DQN, PPO
 import optuna
+from torch import nn as nn
+
 
 def get_factors(number: int) -> list:
     factors = []
@@ -74,9 +74,10 @@ def sample_a2c_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         "small": dict(pi=[64, 64], vf=[64, 64]),
         "medium": dict(pi=[256, 256], vf=[256, 256]),
     }[net_arch_type]
+    
+    
+    activation_fn = {"tanh": nn.Tanh, "relu": nn.ReLU, "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}[activation_fn_name]
 
-
-    activation_fn = {"tanh": nnn.Tanh, "relu": nnn.ReLU, "elu": nnn.ELU, "leaky_relu": nnn.LeakyReLU}[activation_fn_name]
 
     return {
         "n_steps": n_steps,
@@ -127,9 +128,9 @@ def sample_ppo_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         "small": dict(pi=[64, 64], vf=[64, 64]),
         "medium": dict(pi=[256, 256], vf=[256, 256]),
     }[net_arch_type]
+    
+    activation_fn = {"tanh": nn.Tanh, "relu": nn.ReLU, "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}[activation_fn_name]
 
-    # activation_fn_name = 'relu'
-    activation_fn = {"tanh": nn.tanh, "relu": nn.relu, "elu": nn.elu, "leaky_relu": nn.leaky_relu}[activation_fn_name]
 
     return {
         "n_steps": n_steps,

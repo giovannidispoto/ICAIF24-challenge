@@ -41,6 +41,25 @@ def trade(action, price, cur_cash, cur_btc):
         new_btc = cur_btc
     return new_cash, new_btc
 
+def trade_ms(action, price, cur_cash, cur_btc):
+    new_cash = cur_cash.clone()
+    new_btc = cur_btc.clone()
+
+    # Action 1: Buy Bitcoin
+    buy_mask = (action == 1)  # Boolean mask for buying
+    new_cash[buy_mask] = cur_cash[buy_mask] - price  # Subtract price from cash where action is buy
+    new_btc[buy_mask] = cur_btc[buy_mask] + 1  # Increment BTC by 1 where action is buy
+
+    # Action -1: Sell Bitcoin
+    sell_mask = (action == -1)  # Boolean mask for selling
+    new_cash[sell_mask] = cur_cash[sell_mask] + price  # Add price to cash where action is sell
+    new_btc[sell_mask] = cur_btc[sell_mask] - 1  # Decrement BTC by 1 where action is sell
+
+    # Action 0: Hold (no change needed, already initialized)
+    # new_cash and new_btc are already the current values for this case
+
+    return new_cash, new_btc
+
 
 def winloss(action, last_price, price):
     if action > 0:
@@ -59,6 +78,36 @@ def winloss(action, last_price, price):
             correct_pred = 0
     else:
         correct_pred = 0
+    return correct_pred
+
+def winloss_ms(action, last_price, price):
+    # Initialize the correct_pred tensor
+    correct_pred = torch.zeros_like(action, dtype=torch.int)
+
+    # Conditions for buying (action > 0)
+    buy_mask = (action > 0)
+    correct_pred[buy_mask] = torch.where(
+        last_price < price, 
+        torch.tensor(1, dtype=torch.int, device=action.device),
+        torch.where(
+            last_price > price,
+            torch.tensor(-1, dtype=torch.int, device=action.device),
+            torch.tensor(0, dtype=torch.int, device=action.device)
+        )
+    )
+
+    # Conditions for selling (action < 0)
+    sell_mask = (action < 0)
+    correct_pred[sell_mask] = torch.where(
+        last_price < price,
+        torch.tensor(-1, dtype=torch.int, device=action.device),
+        torch.where(
+            last_price > price,
+            torch.tensor(1, dtype=torch.int, device=action.device),
+            torch.tensor(0, dtype=torch.int, device=action.device)
+        )
+    )
+    # Conditions for holding (action == 0) are already initialized to 0
     return correct_pred
 
 

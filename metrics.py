@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import empyrical as ep
-
+import torch
 
 def cumulative_returns(returns_pct):
     """
@@ -24,6 +24,14 @@ def sharpe_ratio(returns_pct, risk_free=0):
     else:
         sharpe_ratio = (returns.mean() - risk_free) / returns.std()
     return sharpe_ratio
+
+
+def sharpe_ratio_ms(returns_pct: np.ndarray, risk_free=0) -> np.ndarray:
+    mean_returns = returns_pct.mean(axis=0)
+    std_returns = returns_pct.std(axis=0)
+    sharpe_ratios = (mean_returns - risk_free) / std_returns
+    sharpe_ratios[std_returns == 0] = float('inf')
+    return sharpe_ratios
 
 
 def max_drawdown(returns_pct):

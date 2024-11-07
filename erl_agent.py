@@ -120,7 +120,7 @@ class AgentDoubleDQN:
                 else get_action(state).detach()  # different
             states[t] = state
 
-            state, reward, done, _ = env.step(action)  # next_state
+            state, reward, done,  _ = env.step(action)  # next_state
             actions[t] = action
             rewards[t] = reward
             dones[t] = done

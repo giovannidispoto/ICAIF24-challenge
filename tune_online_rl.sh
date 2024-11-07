@@ -1,12 +1,12 @@
 #!/bin/sh
 start_day=7
 n_train_days=1
-n_windows=8 #8
-n_seeds=5
+n_windows=4 #8
+n_seeds=3
 n_trials=50
-agent="PPO" #PPO, DQN, A2C
+agent="DQN" #PPO, DQN, A2C
 
-for ((i=5; i<n_windows; i++)); do
+for ((i=3; i<n_windows; i++)); do
     python3 tune_online_rl.py --start_day_train $((start_day + i)) \
                                     --end_day_train $((start_day + i + n_train_days - 1)) \
                                     --start_day_val $((start_day + i + n_train_days)) \
@@ -14,7 +14,8 @@ for ((i=5; i<n_windows; i++)); do
                                     --n_seeds $n_seeds \
                                     --n_trials $n_trials \
                                     --agent $agent \
-                                    --out_dir "experiments/tuning/${agent}_window_${i}" &
+                                    --progress \
+                                    --out_dir "experiments/tuning/${agent}_window_${(start_day + i)}_${(start_day + i + n_train_days - 1)}" &
 done
 
 wait  # Wait for all background processes to complete

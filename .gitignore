@@ -8,3 +8,8 @@ experiments/*
 **/__pycache__/
 
 agents/*
+
+
+base/data
+
+base_repo

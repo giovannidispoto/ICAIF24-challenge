@@ -16,7 +16,7 @@ class AgentsFactory:
         if agent_info['type'] == 'fqi':
             policy_path = os.path.join(AGENTS_FOLDER, agent_info['file'])
             return AgentFQI(policy_path)
-        elif agent_info['type'] in ['dqn', 'ppo', 'a2c']:
+        elif agent_info['type'] in ['dqn', 'ppo']:
             agent_class = ONLINE_RL_NAME_TO_CLASS_DICT[agent_info['type']]
             model_path = os.path.join(AGENTS_FOLDER, agent_info['file'])
             return AgentOnlineRl(agent_class, model_path)

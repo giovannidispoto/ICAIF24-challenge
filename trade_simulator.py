@@ -53,6 +53,7 @@ class TradeSimulator(gymnasium.Env):
 
         # data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
         data_df = pd.read_parquet(args.parquet_path)
+        
         data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
         if days is not None:
             data_df = data_df[
@@ -254,8 +255,7 @@ class TradeSimulator(gymnasium.Env):
         return self._step(action, _if_random=True)
 
     def get_state(self, step_is_cpu):
-        factor_ary = self.factor_ary[step_is_cpu, :].to(self.device)
-
+        factor_ary = self.factor_ary[step_is_cpu, :].to(self.device)        
         return th.concat(
             (
                 (self.position.float() / self.max_position)[:, None],
