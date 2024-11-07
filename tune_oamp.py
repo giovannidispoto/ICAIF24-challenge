@@ -105,8 +105,8 @@ def tune(exp_name=None, agents_list=[]):
     def objective(trial):
         run_name = f"oamp/{exp_name}/trial_{trial.number}"
 
-        agents_weights_upd_freq = 1 # trial.suggest_int("agents_weights_upd_freq", low=1, high=10, step=5)
-        loss_fn_window = 1 # trial.suggest_int("loss_fn_window", low=1, high=10, step=10)
+        agents_weights_upd_freq = trial.suggest_int("agents_weights_upd_freq", low=1, high=100, step=5)
+        loss_fn_window = trial.suggest_int("loss_fn_window", low=1, high=100, step=5)
         action_thresh = 0.5 # trial.suggest_float("action_thresh", low=0.1, high=0.9)
         oamp_params = {
             "agents_weights_upd_freq": agents_weights_upd_freq,

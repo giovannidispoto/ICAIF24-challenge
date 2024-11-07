@@ -1,89 +1,53 @@
+import json
 import os
 import time
-import torch
+from typing import Optional
+import torch as th
 import numpy as np
+
+from agent.base import AgentBase
+from agent.factory import AgentsFactory
 from erl_config import Config, build_env
 from erl_replay_buffer import ReplayBuffer
 from erl_evaluator import Evaluator
 from trade_simulator import TradeSimulator, EvalTradeSimulator
 from erl_agent import AgentD3QN, AgentDoubleDQN, AgentTwinD3QN
 from collections import Counter
-
+import pickle
 from metrics import *
 
+PROJECT_FOLDER = "./"
 
-def can_buy(action, mid_price, cash, current_btc):
-    if action == 1 and cash > mid_price:  # can buy
-        last_cash = cash
-        new_cash = last_cash - mid_price
-        current_btc += 1
-    elif action == -1 and current_btc > 0:  # can sell
-        last_cash = cash
-        new_cash = last_cash + mid_price
-        current_btc -= 1
-    else:
-        new_cash = cash
-
-    return new_cash, current_btc
+AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
+os.makedirs(AGENTS_FOLDER, exist_ok=True)
 
 
-def winloss(action, last_price, mid_price):
-    if action > 0:
-        if last_price < mid_price:
-            correct_pred = 1
-        elif last_price > mid_price:
-            correct_pred = -1
-        else:
-            correct_pred = 0
-    elif action < 0:
-        if last_price < mid_price:
-            correct_pred = -1
-        elif last_price > mid_price:
-            correct_pred = 1
-        else:
-            correct_pred = 0
-    else:
-        correct_pred = 0
-    return correct_pred
 
 
 class Ensemble:
-    def __init__(self, log_rules, save_path, starting_cash, agent_classes, args: Config):
+    def __init__(self, starting_cash, hyperparameters, env_args):
 
-        self.log_rules = log_rules
 
         # ensemble configs
-        self.save_path = save_path
         self.starting_cash = starting_cash
         self.current_btc = 0
         self.position = [0]
         self.btc_assets = [0]
         self.net_assets = [starting_cash]
         self.cash = [starting_cash]
-        self.agent_classes = agent_classes
-
+        self.hyperparameters = hyperparameters
         self.from_env_step_is = None
-
         # args
-        self.args = args
         self.agents = []
         self.thresh = 0.001
         self.num_envs = 1
         self.state_dim = 8 + 2
+        self.env_args = env_args
         # gpu_id = 0
-        self.device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
-        eval_env_class = args.eval_env_class
-        eval_env_class.num_envs = 1
+        self.device = th.device(f"cuda" if th.cuda.is_available() else "cpu")
 
-        eval_env_args = args.eval_env_args
-        eval_env_args["num_envs"] = 1
-        eval_env_args["num_sims"] = 1
+        self.trade_env  = build_env(TradeSimulator, env_args, -1)
 
-        self.trade_env = build_env(eval_env_class, eval_env_args, gpu_id=args.gpu_id)
-
-        self.actions = []
-
-        self.firstbpi = True
 
     def save_ensemble(self):
         """Saves the ensemble of agents to a directory."""
@@ -97,145 +61,102 @@ class Ensemble:
         print(f"Ensemble models saved in directory: {ensemble_dir}")
 
     def ensemble_train(self):
-        args = self.args
+        for agent_type in self.hyperparameters.keys():
+            for agent_name in self.hyperparameters[agent_type].keys():
+                env_args = self.env_args
+                env_args["days"] = self.hyperparameters[agent_type][agent_name]["days"]
+                if agent_type == "ppo":
+                    env_args['n_envs'] = 4
+                AgentsFactory.train({"type": agent_type, "file":  self.hyperparameters[agent_type][agent_name]['file'], "model_args": self.hyperparameters[agent_type][agent_name]["model_args"]}, env_args=env_args)
+    
+    def evaluate_agent(self, agent: AgentBase, eval_env, eval_sequential: bool = False, verbose: int = 0):
+        num_eval_sims = eval_env.num_sims
 
-        for agent_class in self.agent_classes:
+        state, _ = eval_env.reset(seed=eval_env.seed, eval_sequential=eval_sequential)
+        
+        total_reward = th.zeros(num_eval_sims, dtype=th.float32, device=self.device)
+        rewards = th.empty((0, num_eval_sims), dtype=th.float32, device=self.device)
+        
+            
+        for i in range(eval_env.max_step):
+            
+            action = agent.action(state)
+            action = th.from_numpy(action).to(self.device)            
+            state, reward, terminated, truncated, _ = eval_env.step(action=action)
+            
+            rewards = th.cat((rewards, reward.unsqueeze(0)), dim=0)
+                
+            total_reward += reward
 
-            args.agent_class = agent_class
-
-            agent = self.train_agent(args=args)
-            self.agents.append(agent)
-
-        self.save_ensemble()
-
-    def _majority_vote(self, actions):
-        """handles tie breaks by returning first element of the most common ones"""
-        count = Counter(actions)
-        majority_action, _ = count.most_common(1)[0]
-        return majority_action
-
-    def train_agent(self, args: Config):
-        """
-        Trains agent
-        Builds env inside
-        """
-        args.init_before_training()
-        torch.set_grad_enabled(False)
-
-        """init environment"""
-        env = build_env(args.env_class, args.env_args, args.gpu_id)
-
-        """init agent"""
-        agent = args.agent_class(
-            args.net_dims,
-            args.state_dim,
-            args.action_dim,
-            gpu_id=args.gpu_id,
-            args=args,
-        )
-        agent.save_or_load_agent(args.cwd, if_save=False)
-
-        state = env.reset()
-
-        if args.num_envs == 1:
-            assert state.shape == (args.state_dim,)
-            assert isinstance(state, np.ndarray)
-            state = torch.tensor(state, dtype=torch.float32, device=agent.device).unsqueeze(0)
-        else:
-            if state.shape != (args.num_envs, args.state_dim):
-                raise ValueError(f"state.shape == (num_envs, state_dim): {state.shape, args.num_envs, args.state_dim}")
-            if not isinstance(state, torch.Tensor):
-                raise TypeError(f"isinstance(state, torch.Tensor): {repr(state)}")
-            state = state.to(agent.device)
-        assert state.shape == (args.num_envs, args.state_dim)
-        assert isinstance(state, torch.Tensor)
-        agent.last_state = state.detach()
-
-        """init buffer"""
-
-        if args.if_off_policy:
-            buffer = ReplayBuffer(
-                gpu_id=args.gpu_id,
-                num_seqs=args.num_envs,
-                max_size=args.buffer_size,
-                state_dim=args.state_dim,
-                action_dim=1 if args.if_discrete else args.action_dim,
-            )
-            buffer_items = agent.explore_env(env, args.horizon_len * args.eval_times, if_random=True)
-            buffer.update(buffer_items)  # warm up for ReplayBuffer
-        else:
-            buffer = []
-
-        """init evaluator"""
-        eval_env_class = args.eval_env_class if args.eval_env_class else args.env_class
-        eval_env_args = args.eval_env_args if args.eval_env_args else args.env_args
-        eval_env = build_env(eval_env_class, eval_env_args, args.gpu_id)
-        evaluator = Evaluator(cwd=args.cwd, env=eval_env, args=args)
-
-        """train loop"""
-        cwd = args.cwd
-        break_step = args.break_step
-        horizon_len = args.horizon_len
-        if_off_policy = args.if_off_policy
-        if_save_buffer = args.if_save_buffer
-        del args
-
-        import torch as th
-
-        if_train = True
-        while if_train:
-            buffer_items = agent.explore_env(env, horizon_len)
-
-            action = buffer_items[1].flatten()
-            action_count = th.bincount(action).data.cpu().numpy() / action.shape[0]
-            action_count = np.ceil(action_count * 998).astype(int)
-
-            position = buffer_items[0][:, :, 0].long().flatten()
-            position = position.float()  # TODO Only if on cpu
-            position_count = torch.histc(position, bins=env.max_position * 2 + 1, min=-2, max=2)
-            position_count = position_count.data.cpu().numpy() / position.shape[0]
-            position_count = np.ceil(position_count * 998).astype(int)
-
-            print(";;;", " " * 70, action_count, position_count)
-
-            exp_r = buffer_items[2].mean().item()
-            if if_off_policy:
-                buffer.update(buffer_items)
-            else:
-                buffer[:] = buffer_items
-
-            torch.set_grad_enabled(True)
-            logging_tuple = agent.update_net(buffer)
-            torch.set_grad_enabled(False)
-
-            evaluator.evaluate_and_save(
-                actor=agent.act,
-                steps=horizon_len,
-                exp_r=exp_r,
-                logging_tuple=logging_tuple,
-            )
-            if_train = (evaluator.total_step <= break_step) and (not os.path.exists(f"{cwd}/stop"))
-
-        print(f"| UsedTime: {time.time() - evaluator.start_time:>7.0f} | SavedDir: {cwd}")
-
-        env.close() if hasattr(env, "close") else None
-        evaluator.save_training_curve_jpg()
-        agent.save_or_load_agent(cwd, if_save=True)
-        if if_save_buffer and hasattr(buffer, "save_or_load_history"):
-            buffer.save_or_load_history(cwd, if_save=True)
-
-        self.from_env_step_is = env.step_is
-        return agent
+            if terminated.any() or truncated:
+                break
+        
+        
+        mean_total_reward = total_reward.mean().item()
+        std_total_reward = total_reward.std().item() if num_eval_sims > 1 else 0.
+        mean_std_steps = rewards.std(dim=0).mean().item()
+        
+        if verbose:
+            print(f'Sims mean: {mean_total_reward} Sims std: {std_total_reward}, Mean std steps: {mean_std_steps}')
+        
+        
+        return mean_total_reward, std_total_reward, mean_std_steps
 
 
-def run(save_path, agent_list, log_rules=False):
+    def model_selection(self, agent_path: str, num_sims: int = 10, eval_sequential: bool = False, save_path: Optional[str] = None):
+        eval_env_args = self.env_args.copy()
+        eval_env_args["num_envs"] = 1
+        eval_env_args["num_sims"] = num_sims
+        eval_env_args["eval_sequential"] = eval_sequential
+        eval_env_args["eval"] = True
+        eval_env_args["env_class"] = EvalTradeSimulator
+        
+        agent_file_names = [x for x in os.listdir(agent_path) if x.split('_')[0] in ['ppo', 'fqi', 'dqn']]
+        
+        print(f'All found agents: {agent_file_names}')
+        results = {}
+        for w in range(1, 8):
+            curr_agents = [a for a in agent_file_names if f'_w{w-1}.' in a] # Get agents trained of the previous day
+            
+            curr_eval_env_args = eval_env_args.copy()
+            curr_eval_env_args["days"] = [w + 7, w + 7]
+            eval_env = build_env(curr_eval_env_args["env_class"], curr_eval_env_args, gpu_id=-1)
+            
+            results[w] = {
+                "agents": [],
+                "mean_total_rewards": [],
+                "std_simulations": []
+            }
+            for agent_file in curr_agents:
+                agent_type = agent_file.split('_')[0]
+                agent = AgentsFactory.load_agent({"type": agent_type, "file": os.path.join(agent_path, agent_file)})
+                print(f"Evaluating {agent_file.split('.')[0]} on window {w}")
+                mean_total_reward, std_simulations, mean_std_steps = self.evaluate_agent(agent, eval_env, eval_sequential, verbose=1)
+                results[w]["agents"].append(agent_file)
+                results[w]["mean_total_rewards"].append(mean_total_reward)
+                results[w]["std_simulations"].append(std_simulations)
+                results[w]["mean_std_steps"] = mean_std_steps
+                # print(f'Agent: {agent_file} Mean Total Reward: {mean_total_reward} Std Simulations: {std_simulations} Mean std steps: {mean_std_steps}')
+            if len(results[w]["agents"]) > 0:
+                best_idx = np.argmax(results[w]["mean_total_rewards"])
+                results[w]["best_agent"] = results[w]["agents"][best_idx]
+                results[w]["best_mean_total_reward"] = results[w]["mean_total_rewards"][best_idx]
+        
+        if save_path is not None:
+            with open(save_path, "w") as file:
+                json.dump(results, file, indent=4)
+            
+        return results
+
+
+def run(hyperparameters, log_rules=False):
     import sys
 
     gpu_id = int(sys.argv[1]) if len(sys.argv) > 1 else -1  # 从命令行参数里获得GPU_ID
 
     from erl_agent import AgentD3QN
 
-    num_sims = 2**12
+    num_sims = 1
     num_ignore_step = 60
     max_position = 1
     step_gap = 2
@@ -255,41 +176,123 @@ def run(save_path, agent_list, log_rules=False):
         "num_sims": num_sims,
         "step_gap": step_gap,
     }
-    args = Config(agent_class=AgentD3QN, env_class=TradeSimulator, env_args=env_args)
-    args.gpu_id = gpu_id
-    args.random_seed = gpu_id
-    args.net_dims = (128, 128, 128)
-
-    args.gamma = 0.995
-    args.explore_rate = 0.005
-    args.state_value_tau = 0.01
-    args.soft_update_tau = 2e-6
-    args.learning_rate = 2e-6
-    args.batch_size = 512
-    args.break_step = int(32)  # TODO reset to 32e4
-    args.buffer_size = int(max_step * 32)
-    args.repeat_times = 2
-    args.horizon_len = int(max_step * 4)
-    args.eval_per_step = int(max_step)
-    args.num_workers = 1
-    args.save_gap = 8
-
-    args.eval_env_class = EvalTradeSimulator
-    args.eval_env_args = env_args.copy()
 
     ensemble_env = Ensemble(
-        log_rules,
-        save_path,
         1e6,
-        agent_list,
-        args,
+        hyperparameters,
+        env_args
     )
     ensemble_env.ensemble_train()
+    
+    # model_selection_results = ensemble_env.model_selection(AGENTS_FOLDER, num_sims=10, eval_sequential=False, save_path=f"{AGENTS_FOLDER}/model_selection_results.json")
 
 
 if __name__ == "__main__":
 
+    hyperparameters = {
+        "ppo": {
+            "w1": {
+                "file":"./agents/ppo_w1.zip",
+                "days" : [9, 9],
+                "model_args": { },
+            }
+
+        },
+        "fqi" : {
+            "w1": {
+                "file" : "./agents/fqi_w1.pkl",
+                "days" : [9, 9],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+
+            },
+            "w2": {
+                "file": "./agents/fqi_w2.pkl",
+                "days": [10, 10],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w3": {
+                "file": "./agents/fqi_w3.pkl",
+                "days": [11, 11],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w4": {
+                "file": "./agents/fqi_w4.pkl",
+                "days": [12, 12],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w5": {
+                "file": "./agents/fqi_w5.pkl",
+                "days": [13, 13],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w6": {
+                "file": "./agents/fqi_w6.pkl",
+                "days": [14, 14],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w7": {
+                "file" : "./agents/fqi_w7.pkl",
+                "days": [15, 15],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w8": {
+                "file": "./agents/fqi_w8.pkl",
+                "days": [16, 16],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+            "w9": {
+                "file": "./agents/fqi_w9.pkl",
+                "days": [17, 17],
+                "model_args": {
+                    "n_estimators": 100,
+                    "max_depth": 20,
+                    "iterations": 3,
+                    "min_samples_split": 10000
+                },
+            },
+        }
+    }
+
     run(
-        "ensemble_teamname",
-        [AgentD3QN, AgentDoubleDQN, AgentDoubleDQN, AgentTwinD3QN],
+        hyperparameters,
     )

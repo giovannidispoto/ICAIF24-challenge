@@ -25,8 +25,11 @@ class OAMP:
         # Initializing agents
         self.agents_count = agents_count
         self.agents_rewards = []
-        self.agents_returns = deque(maxlen=args.loss_fn_window)
+        self.agents_returns = self.init_agents_returns(args.loss_fn_window)
+        self.agents_weights_upd_freq = args.agents_weights_upd_freq
+        self.action_thresh = args.action_thresh
         # Initializing OAMP
+        self.t = 0
         self.l_tm1 = np.zeros(agents_count)
         self.n_tm1 = np.ones(agents_count) * 0.25
         self.w_tm1 = np.ones(agents_count) / agents_count
@@ -40,6 +43,12 @@ class OAMP:
             "ensemble_rewards": [],
         }
 
+    def init_agents_returns(
+        self,
+        loss_fn_window: int,
+    ):
+        return deque(maxlen=loss_fn_window)
+
     def step(
         self,
         agents_rewards: np.ndarray,
@@ -48,55 +57,60 @@ class OAMP:
     ):
         # Updating agents' rewards
         self.agents_rewards.append(agents_rewards)
-        self.stats["agents_losses"].append(self.l_tm1)
-        self.stats["agents_weights"].append(self.p_tm1)
         self.stats['agents_rewards'].append(agents_rewards)
         self.stats['ensemble_rewards'].append(ensemble_reward)
-        return self.compute_ensemble_action(agents_actions, self.p_tm1)
+        # Updating agents' weights
+        agents_weights = self.update_agents_weights()
+        # Updating timestep
+        self.t += 1
+        return self.compute_action(agents_actions, agents_weights)
 
     def update_agents_weights(
         self,
     ):
-        # Computing agents' losses
-        l_t = self.compute_agents_losses()
-        # Computing agents' regrets estimates
-        m_t = get_m(
-            self.l_tm1,
-            self.n_tm1,
-            self.w_tm1,
-            self.agents_count,
-        )
-        # Computing agents' selection probabilites
-        p_t = get_p(m_t, self.w_tm1, self.n_tm1)
-        # Computing agents' regrets
-        r_t = get_r(l_t, p_t)
-        # Computing agents' regrets estimatation error
-        self.cum_err += (r_t - m_t) ** 2
-        # Updating agents' learning rates
-        n_t = upd_n(self.cum_err, self.agents_count)
-        # Updating agents' weights
-        w_t = upd_w(
-            self.w_tm1,
-            self.n_tm1,
-            n_t,
-            r_t,
-            m_t,
-            self.agents_count,
-        )
-        self.l_tm1 = l_t
-        self.n_tm1 = n_t
-        self.w_tm1 = w_t
-        self.p_tm1 = p_t
+        if self.t % self.agents_weights_upd_freq == 0:
+            # Computing agents' losses
+            l_t = self.compute_agents_losses()
+            # Computing agents' regrets estimates
+            m_t = get_m(
+                self.l_tm1,
+                self.n_tm1,
+                self.w_tm1,
+                self.agents_count,
+            )
+            # Computing agents' selection probabilites
+            p_t = get_p(m_t, self.w_tm1, self.n_tm1)
+            # Computing agents' regrets
+            r_t = get_r(l_t, p_t)
+            # Computing agents' regrets estimatation error
+            self.cum_err += (r_t - m_t) ** 2
+            # Updating agents' learning rates
+            n_t = upd_n(self.cum_err, self.agents_count)
+            # Updating agents' weights
+            w_t = upd_w(
+                self.w_tm1,
+                self.n_tm1,
+                n_t,
+                r_t,
+                m_t,
+                self.agents_count,
+            )
+            self.l_tm1 = l_t
+            self.n_tm1 = n_t
+            self.w_tm1 = w_t
+            self.p_tm1 = p_t
+            self.stats["agents_losses"].append(l_t)
+            self.stats["agents_weights"].append(self.p_tm1)
+        else:
+            self.stats["agents_losses"].append(np.zeros(self.agents_count))
+            self.stats["agents_weights"].append(self.p_tm1)
         return self.p_tm1
 
     def compute_agents_losses(
         self,
     ) -> np.ndarray:
-        # Updating agents' returns
-        self.agents_returns.append(np.sum(self.agents_rewards, axis=0))
-        self.agents_rewards = []
         # Computing agents' losses
-        agents_losses: np.ndarray = -np.sum(self.agents_returns, axis=0)
+        agents_losses: np.ndarray = -np.sum(self.agents_rewards, axis=0)
         # Normalizing agents' losses
         agents_losses_min = agents_losses.min()
         agents_losses_max = agents_losses.max()
@@ -106,13 +120,20 @@ class OAMP:
             )
         return agents_losses
 
-    def compute_ensemble_action(
+    def compute_action(
         self,
         agents_actions: np.ndarray,
         agents_weights: np.ndarray,
     ) -> np.ndarray:
-        return agents_actions[np.argmax(agents_weights)]
-    
+        action = np.dot(agents_actions, agents_weights)
+        return action
+        action_int = action - 1
+        if np.abs(action_int) < self.action_thresh:
+            action = 1
+        else:
+            action = np.sign(action_int) + 1
+        return action
+
     def plot_stats(
         self,
         save_path: str,
@@ -133,6 +154,6 @@ class OAMP:
         axs[2].stackplot(np.arange(len(agents_weights)), np.transpose(agents_weights))
         axs[2].grid()
         axs[2].set_title("Agents' Weights")
-        fig.legend(labels=agents_names+['multi-agent'], loc="center left", bbox_to_anchor=(0.95, 0.5))
+        fig.legend(labels=agents_names, loc="center left", bbox_to_anchor=(0.95, 0.5))
         fig.savefig(os.path.join(save_path, "oamp_stats.png"), bbox_inches="tight")
         plt.close(fig)
