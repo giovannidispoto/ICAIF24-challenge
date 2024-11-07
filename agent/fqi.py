@@ -101,7 +101,7 @@ class AgentFQI(AgentBase):
                                                                                              data_dir=DATA_DIR)
         if len(policies_unread) > 0:
             for policy in policies_unread:
-                sa, r, ns, a = self.generate_experience(days_to_sample=env_args["day"],
+                sa, r, ns, a = self.generate_experience(days_to_sample=env_args["days"],
                                                          env_args=env_args,
                                                          episodes=EPISODES_FQI,
                                                          policy=policy,
