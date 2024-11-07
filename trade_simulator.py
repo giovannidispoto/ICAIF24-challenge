@@ -51,8 +51,8 @@ class TradeSimulator(gymnasium.Env):
 
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
 
-        # data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
-        data_df = pd.read_parquet(args.parquet_path)
+        data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
+        #data_df = pd.read_parquet(args.parquet_path)
         
         data_df["day"] = pd.to_datetime(data_df["system_time"]).dt.day
         if days is not None:

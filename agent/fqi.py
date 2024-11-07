@@ -58,21 +58,7 @@ class AgentFQI(AgentBase):
             absorbing_state = np.concatenate(absorbing_state)
         return state_actions, rewards, next_states, absorbing_state, policies_unread
 
-    def generate_experience(self, days_to_sample, policy, max_steps=360, episodes=1000, save=True, data_dir='./data/'):
-        env_args = {
-            "env_name": "TradeSimulator-v0",
-            "num_envs": 1,
-            "max_step": max_steps,
-            "state_dim": 8 + 2,  # factor_dim + (position, holding)
-            "action_dim": 3,  # long, 0, short
-            "if_discrete": True,
-            "max_position": 1,
-            "slippage": 7e-7,
-            "num_sims": episodes,
-            "step_gap": 2,
-            "env_class": TradeSimulator,
-            'days': days_to_sample
-        }
+    def generate_experience(self, env_args, days_to_sample, policy, max_steps=360, episodes=1000, save=True, data_dir='./data/'):
         pi = policies[policy]
         env = build_env(TradeSimulator, env_args, -1)
         states = []
@@ -148,6 +134,6 @@ class AgentFQI(AgentBase):
     def save(self, out_dir, name=""):
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        model_name = out_dir + f'fqi_{name}.pkl'
+        model_name = out_dir + f'/fqi_{name}.pkl'
         with open(model_name, 'wb+') as f:
             pickle.dump(self.policy, f)

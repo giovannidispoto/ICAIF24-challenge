@@ -19,7 +19,7 @@ class AgentOnlineRl(AgentBase):
     def __init__(
         self,
         agent_class: typing.Union[PPO, DQN],
-        model_path: str,
+        model_path: str = None,
         deterministic: bool = True,
         device: str = "cpu",
         gpu_id: int = -1,
@@ -69,7 +69,7 @@ class AgentOnlineRl(AgentBase):
         seed = env_args.get("seed", None)
         if seed is None:
             np.random.seed()
-            seed = np.random.randint(2**32 - 1, dtype="int64")
+            seed = int(np.random.randint(2**32 - 1, dtype="int64"))
             print(f'Seed not provided, using random seed {seed}')
             env_args["seed"] = seed
             
@@ -81,7 +81,7 @@ class AgentOnlineRl(AgentBase):
         progress_bar = model_args.get('progress_bar', False)
         model_args.pop('progress_bar', None)
         
-        print(f'Training with seed: {seed} on days: [{self.start_day}, {self.end_day}]')
+        print(f'Training with seed: {seed} on days: [{env_args["days"][0]}, {env_args["days"][0]}]')
         agent = self.agent_class("MlpPolicy", env, verbose=0, 
                                  seed=seed,
                                  **model_args)
@@ -106,7 +106,7 @@ class AgentOnlineRl(AgentBase):
 
     @staticmethod
     def save(agent: typing.Union[PPO, DQN], save_dir: str = "."):
-        os.makedirs(save_dir, exist_ok=True)
+        #os.makedirs(save_dir, exist_ok=True)
         agent.save(save_dir)
         
     
