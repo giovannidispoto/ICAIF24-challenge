@@ -80,6 +80,7 @@ def train_window(window):
         "eval": True,
         "days": [end_day_train + 1, end_day_train + 1]
     }
+
     eval_env = build_env(TradeSimulator, env_args, -1)
     agent = AgentFQI()
     state_actions, rewards, next_states, absorbing, policies_unread = agent.read_dataset(sample_days_train,
