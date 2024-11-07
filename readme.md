@@ -5,13 +5,16 @@ Our submission presents an Online Adaptation method based on OAMP [1], which sel
 out of a pretrained pool of experts.
 
 To train the experts of the ensemble, we split the training dataset into 10 subsets, where each subset corresponds to a
-calendar day. For each subset, we train 3 different RL agents on the whole day, one DQN [2] agent, one PPO [3] agent and
+calendar day. The first two days are kept for validating the OAMP algorithm. The next 7 days are used as training subsets.
+For each training subset, we train 3 different RL agents on the whole day, one DQN [2] agent, one PPO [3] agent and
 one FQI [4] agent. For DQN and PPO we employ the implementations found in stable_baselines3 [5], whereas for FQI 
 we employ our own implementation. We evaluate each algorithm on the next day to perform hyperparameter tuning.
-In total, we train 24 agents, 3 for each day from 9th to 16th April. Out of these 24 agents, we choose 8 final agents 
+In total, we train 21 agents, 3 for each day from 9th to 15th April. Out of these 21 agents, we choose 7 final agents 
 to be employed in the ensemble, choosing the best out of DQN, PPO or FQI based on their respective validation scores
 for that day. We opt to use the first two days for validating the ensemble since the last two show a market trend
-reversal, this way we have a diverse set of experts that have seen diverse market regimes.
+reversal, this way we have a diverse set of experts that have seen diverse market regimes. The last day is kept as a final
+test of the Ensemble.
+
 For training and evaluating DQN and PPO agents, we employ an episodic setting, where in each episode we pick a random 
 starting state in the training day and run our agents for 480 steps of 2 seconds.
 Therefore, our agents optimize the expected return of trading intervals of 16 minutes. We chose these values out of some 
