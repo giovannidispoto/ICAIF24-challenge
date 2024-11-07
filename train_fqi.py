@@ -56,7 +56,7 @@ def get_cli_args():
     parser.add_argument(
         '--max_steps',
         type=int,
-        default=360
+        default=480
     )
     parser.add_argument(
         '--n_windows',
@@ -77,26 +77,26 @@ def get_cli_args():
     return parser.parse_args()
 
 
-def read_dataset(sample_days, policies=None):
+def read_dataset(sample_days, policies=None, data_dir='./data/'):
     dfs = []
     dfs_unread = []
     if policies is None:
         policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
     for p in policies:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
         try:
-            df = pd.read_json(f"./data/{p}_{sample_days}.json", )
+            df = pd.read_json(f"{data_dir}{p}_{sample_days}.json", )
             dfs.append(df)
         except:
             dfs_unread.append(p)
     return dfs, dfs_unread
 
-def generate_dataset(days_to_sample, max_steps=360, episodes=1000, policies=None):
+def generate_dataset(days_to_sample, max_steps=360, episodes=1000, policies=None, data_dir='./data/'):
     dfs = []
     if policies is None:
         policies = ['random_policy', 'long_only_policy', 'short_only_policy', 'flat_only_policy']
     for policy in policies:  # aggiungere anche politiche addestrate con PPO (anche senza tuning)
         df = generate_experience(days_to_sample, policy, max_steps=max_steps, episodes=episodes, save=True,
-                                 testing=False)
+                                 testing=False, data_dir=data_dir)
         dfs.append(df)
     return dfs
 

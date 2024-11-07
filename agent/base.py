@@ -3,5 +3,5 @@ from abc import ABC, abstractmethod
 
 class AgentBase(ABC):
     @abstractmethod
-    def action(self):
+    def action(self, state):
         pass
