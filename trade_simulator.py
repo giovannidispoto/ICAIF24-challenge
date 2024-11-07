@@ -226,9 +226,15 @@ class TradeSimulator(gymnasium.Env):
             # terminal = old_position.ne(0) & new_position.eq(0)
             terminal = th.zeros_like(self.position, dtype=th.bool)
 
-        return state, reward, terminal, info_dict
+        return state, reward, terminal, truncated, info_dict
 
-    def reset(self, options: Optional[dict] = None, _if_sequential=False):
+    def reset(
+            self,
+            seed: Optional[int]=None, 
+            options: Optional[dict] = None, 
+            _if_sequential=False
+        ):
+        super().reset(seed=seed)
         return self._reset(slippage=None, _if_random=True, _if_sequential=_if_sequential)
 
     def step(self, action):
@@ -249,7 +255,15 @@ class TradeSimulator(gymnasium.Env):
 
 class EvalTradeSimulator(TradeSimulator):
 
-    def reset(self, options: Optional[dict] = None, slippage=None, date_strs=(), _if_sequential=True):
+    def reset(
+            self, 
+            seed: Optional[int]=None, 
+            options: Optional[dict] = None, 
+            slippage=None, 
+            date_strs=(), 
+            _if_sequential=True,
+        ):
+        gymnasium.Env().reset(seed=seed)
         return self._reset(slippage=slippage, _if_random=False, _if_sequential=_if_sequential)
 
     def step(self, action):

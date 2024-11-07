@@ -10,25 +10,40 @@ from agent.baselines import ShortOnlyBaseline, LongOnlyBaseline, RandomBaseline,
 from trade_simulator import TradeSimulator
 from erl_config import build_env
 
-policies = {
+BASELINES_POLICIES = {
     'random_policy': RandomBaseline(),
     'long_only_policy': LongOnlyBaseline(),
     'short_only_policy': ShortOnlyBaseline(),
     'flat_only_policy': FlatOnlyBaseline()
 }
-
-EPISODE_FQI = 1000
+EPISODES_FQI = 1000
 DATA_DIR = "./data/"
+
 
 class AgentFQI(AgentBase):
 
     def action(
-            self,
-            state: np.ndarray,
+        self,
+        state: np.ndarray,
     ):
-        q_values, max_actions = self.policy.Q.max(state)
+        _, max_actions = self.policy.Q.max(state)
         return np.array(max_actions)
+    
+    def load(
+        self, 
+        policy_path: str,
+    ):
+        self.policy = pickle.load(open(policy_path, "rb"))
+        for i in range(3):
+            self.policy.Q._regressors[i].n_jobs = 1
 
+    def save(
+        self, 
+        policy_path: str,
+    ):
+        with open(policy_path, 'wb+') as f:
+            pickle.dump(self.policy, f)
+    
     def read_dataset(self, sample_days, policies_to_read=None, data_dir='./data/'):
         policies_unread = []
         state_actions = []
@@ -37,7 +52,7 @@ class AgentFQI(AgentBase):
         next_states = []
 
         if policies_to_read is None:
-            policies_to_read = policies.keys()
+            policies_to_read = BASELINES_POLICIES.keys()
         for p in policies_to_read:
             try:
                 path_name = f"{data_dir}/{p}_{sample_days}.pkl"
@@ -56,7 +71,7 @@ class AgentFQI(AgentBase):
         return state_actions, rewards, next_states, absorbing_state, policies_unread
 
     def generate_experience(self, env_args, days_to_sample, policy, max_steps=360, episodes=1000, save=True, data_dir='./data/'):
-        pi = policies[policy]
+        pi = BASELINES_POLICIES[policy]
         env = build_env(TradeSimulator, env_args, -1)
         states = []
         actions = []
@@ -66,7 +81,7 @@ class AgentFQI(AgentBase):
         s, _ = env.reset()
         for step in range(max_steps):
             states.append(s.numpy())
-            a = pi(s)
+            a = pi.action(s)
             s, r, done, truncated, info = env.step(a)
             actions.append(a)
             rewards.append(r.numpy())
@@ -142,15 +157,3 @@ class AgentFQI(AgentBase):
         for i in range(3):
             self.policy.Q._regressors[i].n_jobs = 1
 
-    def load(self, policy_path):
-        self.policy = pickle.load(open(policy_path, "rb"))
-        # print(self.policy)
-        for i in range(3):
-            self.policy.Q._regressors[i].n_jobs = 1
-
-
-
-
-    def save(self, save_path):
-        with open(save_path, 'wb+') as f:
-            pickle.dump(self.policy, f)

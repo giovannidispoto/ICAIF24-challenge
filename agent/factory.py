@@ -1,12 +1,8 @@
 import os
 
-import numpy as np
-
 from agent.fqi import AgentFQI
-from agent.online_rl import ONLINE_RL_NAME_TO_CLASS_DICT, AgentOnlineRl
+from agent.online_rl import AgentOnlineRl
 from agent.baselines import ShortOnlyBaseline, LongOnlyBaseline, RandomBaseline
-from erl_config import build_env
-from trade_simulator import TradeSimulator
 
 PROJECT_FOLDER = "./"
 DATA_DIR = os.path.join(PROJECT_FOLDER, "data")
@@ -45,15 +41,12 @@ class AgentsFactory:
             except:
                 agent.train(env_args=env_args, args=agent_info['model_args'])
                 agent.save(agent_info['file'])
-
         elif agent_info['type'] in ['dqn', 'ppo']:
-            agent_class = ONLINE_RL_NAME_TO_CLASS_DICT[agent_info['type']]
-            agent = AgentOnlineRl(agent_class)
+            agent = AgentOnlineRl(agent_info['type'])
             try:
                 agent.load(agent_info['file'])
             except:
                 agent.train(env_args=env_args, model_args=agent_info['model_args'])
                 agent.save(agent_info['file'])
-
         else:
             raise NotImplementedError
