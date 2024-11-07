@@ -40,7 +40,7 @@ class AgentOnlineRl(AgentBase):
         self, 
         model_path: str,
     ):
-        self.agent = self.agent_type.load(os.path.join(model_path))
+        self.agent = self.agent_type.load(model_path)
     
     def save(
         self, 
