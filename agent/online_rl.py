@@ -21,12 +21,13 @@ class AgentOnlineRl(AgentBase):
         agent_class: typing.Union[PPO, DQN],
         model_path: str,
         deterministic: bool = True,
+        device: str = "cpu",
+        gpu_id: int = -1,
     ):
         assert [agent_class == x for x in [PPO, DQN]], 'Only stable_baseline3 PPO and DQN are supported (prefer not to use sbx for now)'
-        
-        
-        self.device = torch.device("cpu")
-        self.gpu_id = -1
+    
+        self.device = torch.device(device)
+        self.gpu_id = gpu_id
         self.deterministic = deterministic
         self.model_path = model_path
         self.agent_class = agent_class
