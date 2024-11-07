@@ -9,7 +9,74 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 import matplotlib.pyplot as plt
 from erl_config import build_env
 from trade_simulator import TradeSimulator
+from torch import nn as nn
 
+def get_factors(number: int) -> list:
+    factors = []
+    for i in range(1, int(number ** 0.5) + 1):
+        if number % i == 0:
+            factors.append(i)
+            if i != number // i:
+                factors.append(number // i)
+    return sorted(factors)
+
+def find_closest_factor(number, y):
+    factors = get_factors(y)
+    return min(factors, key=lambda x: abs(x - number))
+
+def preprocess_ppo_params(params: dict, n_envs: int):
+    new_params = params.copy()
+    n_steps = params["n_steps"]
+    batch_size = params["batch_size"]
+
+    if (n_steps * n_envs) % batch_size != 0:        
+        batch_size = find_closest_factor(batch_size, n_steps * n_envs)
+
+    net_arch_type = params["net_arch"]
+    del new_params["net_arch"]
+    
+    net_arch = {
+        "tiny": dict(pi=[64], vf=[64]),
+        "small": dict(pi=[64, 64], vf=[64, 64]),
+        "medium": dict(pi=[256, 256], vf=[256, 256]),
+    }[net_arch_type]
+    
+    activation_fn_type = params["activation_fn"]
+    del new_params["activation_fn"]
+    
+    activation_fn = {"tanh": nn.Tanh, "relu": nn.ReLU, "elu": nn.ELU, "leaky_relu": nn.LeakyReLU}[activation_fn_type]
+
+    new_params.update({
+        "policy_kwargs": dict(
+            net_arch=net_arch,
+            activation_fn=activation_fn,
+            ortho_init=False,
+        ),
+    })
+    return new_params
+
+def preprocess_dqn_params(params: dict, n_envs:int):
+    new_params = params.copy()
+    net_arch_type = params["net_arch"]
+    del new_params["net_arch"]
+    
+    net_arch = {
+        "tiny": [64],
+        "small": [64, 64],
+        "medium": [256, 256],
+    }[net_arch_type]
+        
+    new_params.update({
+        "policy_kwargs": dict(
+            net_arch=net_arch,
+        ),
+    })
+    return new_params
+
+PREPROCESS_ONLINE_RL_PARAMS = {
+    'ppo': preprocess_ppo_params,
+    'dqn': preprocess_dqn_params
+}
 
 ONLINE_RL_TYPES = {
     "ppo": PPO,
@@ -28,6 +95,7 @@ class AgentOnlineRl(AgentBase):
     ):   
         self.device = torch.device(device)
         self.gpu_id = gpu_id
+        self.agent_type_name = agent_type
         self.agent_type = ONLINE_RL_TYPES[agent_type]
         self.agent = None
 
@@ -81,6 +149,8 @@ class AgentOnlineRl(AgentBase):
         model_args.pop('progress_bar', None)
         
         print(f'Training with seed: {seed} on days: [{env_args["days"][0]}, {env_args["days"][0]}]')
+        
+        model_args = PREPROCESS_ONLINE_RL_PARAMS[self.agent_type_name](model_args, n_envs=n_envs)
         self.agent = self.agent_type(
             "MlpPolicy", 
             env, 
