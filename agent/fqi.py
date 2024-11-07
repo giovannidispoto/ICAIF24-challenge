@@ -129,9 +129,9 @@ class AgentFQI(AgentBase):
 
         for i in range(max_iterations):
             self.algorithm._iter(
-                state_actions.to_numpy(dtype=np.float32),
-                rewards.to_numpy(dtype=np.float32),
-                next_states.to_numpy(dtype=np.float32),
+                state_actions,
+                rewards,
+                next_states,
                 absorbing,
             )
             self.policy = self.algorithm._policy

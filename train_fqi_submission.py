@@ -57,6 +57,7 @@ n_train_days = args.n_train_days
 data_dir = args.data_dir
 base_out_dir = args.out_dir
 
+
 def train_window(window):
     print(f"training window {window}")
     start_day_train = start_day + window
@@ -103,6 +104,7 @@ def train_window(window):
 
     out_dir = base_out_dir + f"/submission_/{window}_window/"
     agent.save(out_dir)
+
 
 Parallel(n_jobs=n_windows)(delayed(train_window)(window) for window in range(n_windows))
 
