@@ -111,7 +111,7 @@ class OAMP:
         agents_actions: np.ndarray,
         agents_weights: np.ndarray,
     ) -> np.ndarray:
-        return agents_actions[np.argmax(agents_weights)]
+        return np.argmax(agents_weights), agents_actions[np.argmax(agents_weights)]
     
     def plot_stats(
         self,

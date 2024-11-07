@@ -26,8 +26,8 @@ class AgentFQI(AgentBase):
         self,
         state: np.ndarray,
     ):
-        _, max_actions = self.policy.Q.max(state)
-        return np.array(max_actions)
+        q_values = self.policy._q_values(state)
+        return np.argmax(q_values).item()
     
     def load(
         self, 
@@ -134,7 +134,7 @@ class AgentFQI(AgentBase):
             next_states, 
             absorbing, 
             policies_unread,
-        ) = self.read_dataset(env_args["days"], data_dir=DATA_DIR)
+        ) = self.read_dataset(env_args["days"])
         if len(policies_unread) > 0:
             for policy in policies_unread:
                 sa, r, ns, a = self.generate_experience(
@@ -142,7 +142,6 @@ class AgentFQI(AgentBase):
                     env_args=env_args,
                     episodes=EPISODES_FQI,
                     policy=policy,
-                    data_dir=DATA_DIR
                 )
                 if len(state_actions) > 0:
                     state_actions = np.concatenate([state_actions, sa], axis=0)

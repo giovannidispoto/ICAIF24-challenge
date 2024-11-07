@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 import numpy as np
 
@@ -12,7 +13,7 @@ from metrics import sharpe_ratio, max_drawdown, return_over_max_drawdown
 from oamp.oamp import OAMP
 from oamp.oamp_config import ConfigOAMP
 
-PROJECT_FOLDER = "/home/trading/antonio/ICAIF24-challenge"
+PROJECT_FOLDER = "./"
 
 AGENTS_FOLDER = os.path.join(PROJECT_FOLDER, "agents")
 os.makedirs(AGENTS_FOLDER, exist_ok=True)
@@ -111,15 +112,16 @@ class EnsembleEvaluator:
                 # Computing agent current action and reward
                 agent_action = agent.action(agents_last_state[ai])
                 agent_state, agent_reward, _, _, info, = agent_env.step(agent_action)
-                agents_actions.append(info['action'])
+                agents_actions.append(agent_action)#info['action'])
                 agents_rewards.append(agent_reward.item())
                 # Updating agent last state
                 agents_last_state[ai] = agent_state
             # Computing ensemble action
-            action = self._ensemble_action(agents_actions, agents_rewards_old, reward)
+            best_agent, action = self._ensemble_action(agents_actions, agents_rewards_old, reward)
             agents_rewards_old = agents_rewards
             action_int = action - 1
             last_state, reward, _, _, info = self.trade_env.step(action=action)
+            assert np.all(agents_last_state[best_agent].numpy() == last_state.numpy())
             # Upadting trading portfolio
             new_cash = info['new_cash']
             price = info['price']
@@ -174,16 +176,16 @@ def run_evaluation(
     oamp_args: dict=None,
 ):
     evaluation_steps_count = 5000
-
+    
+    # Setting env args
     gpu_id = -1
-
     num_sims = 1
     num_ignore_step = 60
     step_gap = 2
-    max_step = 50
+    max_step = 480
     max_position = 1
     slippage = 7e-7
-    # max_ste not used but set to full len
+
     env_args = {
         "env_name": "TradeSimulator-v0",
         "num_envs": num_sims,
@@ -196,7 +198,7 @@ def run_evaluation(
         "max_position": max_position,
         "slippage": slippage,
         "dataset_path": "data/BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
-        "days": [7, 8],
+        "days": [7, 7],
     }
 
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
@@ -204,8 +206,17 @@ def run_evaluation(
     args.random_seed = gpu_id
     args.starting_cash = 1e6
 
+    # Retrieving best agents
+    agents_info = {}
+    with open(os.path.join(AGENTS_FOLDER, 'agents_best.json'), 'r') as file:
+        agents_best = json.load(file)
+    for agent in agents_best['best_agents']:
+        agents_info[agent] = {'type': agent[:3], 'file': agent}
+    
+    # Retrieving oamp args
     oamp_args = ConfigOAMP(oamp_args)
 
+    # Ensemble trading
     ensemble_evaluator = EnsembleEvaluator(
         'test',
         agents_info,
@@ -217,24 +228,4 @@ def run_evaluation(
 
 
 if __name__ == "__main__":
-    RUN_NAME = "test"
-    AGENTS_INFO = {
-        "agent_0": {
-            'type': 'fqi',
-            'file': "fqi_w2.pkl",
-        },
-        "agent_1": {
-            'type': 'fqi',
-            'file': "fqi_w3.pkl",
-        },
-        "agent_2": {
-            'type': 'fqi',
-            'file': "fqi_w4.pkl",
-        },
-        "agent_3": {
-            'type': 'fqi',
-            'file': "fqi_w5.pkl",
-        },
-    }
-    OAMP_ARGS = {}
-    run_evaluation(RUN_NAME, AGENTS_INFO, OAMP_ARGS)
+    run_evaluation()

@@ -103,9 +103,9 @@ class TradeSimulator(gymnasium.Env):
             i0s = np.random.randint(self.seq_len, self.full_seq_len - self.seq_len * 2, size=self.num_sims)
         else:
             if _if_sequential:
-                i0s = np.ones(self.num_sims)*self.step_i
+                i0s = np.ones(self.num_sims, dtype=int)*(self.step_is.item()+self.step_i)
             else:
-                i0s = np.zeros(self.num_sims)
+                i0s = np.zeros(self.num_sims, dtype=int)
         
         self.step_i = 0
         self.step_is = th.tensor(i0s, dtype=th.long, device=self.device)
