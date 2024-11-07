@@ -2,6 +2,7 @@
 from ast import Dict
 from typing import Any, Callable, Union
 
+from sb3_contrib import RecurrentPPO
 from stable_baselines3 import A2C, DQN, PPO
 import optuna
 from torch import nn as nn
@@ -194,10 +195,12 @@ SAMPLER = {
     PPO.__name__: sample_ppo_params,
     DQN.__name__: sample_dqn_params,
     A2C.__name__: sample_a2c_params,
+    RecurrentPPO.__name__: sample_ppo_params,
 }
 
 ONLINE_RL_NAME_TO_CLASS_DICT = {
     "ppo": PPO,
     "dqn": DQN,
     "a2c": A2C,
+    "rppo": RecurrentPPO
 }
