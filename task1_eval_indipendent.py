@@ -93,6 +93,7 @@ class EnsembleEvaluator:
         for agent_name, agent_info in self.agents_info.items():
             self.agents_names.append(agent_name)
             self.agents.append(AgentsFactory.load_agent(agent_info))
+        print(f"loaded {self.agents_names}")
 
     def multi_trade(self):
         # Initializing trading history
@@ -109,7 +110,8 @@ class EnsembleEvaluator:
         envs = []
         last_states = []
         for i in range(len(self.agents)):
-            envs.append(copy.deepcopy(self.trade_env))
+            env = build_env(self.args.env_class, self.args.env_args, gpu_id=self.args.gpu_id)
+            envs.append(env)
             last_state, _ = envs[i].reset(eval_sequential=True)
             last_states.append(last_state)
 
@@ -122,6 +124,7 @@ class EnsembleEvaluator:
             for i, agent in enumerate(self.agents):
                 # Computing agent curr action
                 agent_action = agent.action(last_states[i])
+                # agent_action = np.random.choice(3)
                 agents_actions.append(agent_action)
                 # Computing agent last reward
                 # agent_env = copy.deepcopy(self.trade_env)
@@ -129,6 +132,7 @@ class EnsembleEvaluator:
                 # state , rewards, terminals, truncates, info_dict = self.trade_env.step(np.array(agents_actions))
                 states.append(state)
                 agents_rewards.append(agent_reward)
+            # print(agents_rewards)
             self.ensemble.stats['rewards'].append(agents_rewards)
 
 
@@ -152,7 +156,7 @@ class EnsembleEvaluator:
                 #     os.path.join(self.save_path, "correct_predictions.npy"),
                 #     np.array(correct_pred),
                 # )
-                self.ensemble.plot_stats(self.save_path, independent=True)
+                self.ensemble.plot_stats(self.save_path, independent=True, agent_names=self.agents_names)
 
         # Saving trading history
         np.save(
@@ -179,7 +183,7 @@ class EnsembleEvaluator:
         print(f"Sharpe Ratio: {final_sharpe_ratio}")
         print(f"Max Drawdown: {final_max_drawdown}")
         print(f"Return over Max Drawdown: {final_roma}")
-        self.ensemble.plot_stats(self.save_path, independent=True)
+        self.ensemble.plot_stats(self.save_path, independent=True, agent_names=self.agents_names)
         return final_sharpe_ratio, return_
 
     def _ensemble_action(self, actions, rewards):
@@ -263,14 +267,22 @@ if __name__ == "__main__":
     for i in range(5):
         AGENTS_INFO[f"dqn_{i}"] = {"type": "dqn", "file": agent_dir + f"DQN_window_{i}"}
         AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"PPO_window_{i}"}
+    agent_dir = "ppos_new/"
+    AGENTS_INFO = {}
+    for i in range(2):
+        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{1}"}
+    # for i in range(3):
+    #     AGENTS_INFO[f"fqi_{i}"] = {"type": "fqi", "file": agent_dir + f"fqi/{i+1}.pkl"}
+
     agent_dir = "ppos/"
     AGENTS_INFO = {}
-    for i in range(5):
-        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{i+1}"}
-    for i in range(3):
-        AGENTS_INFO[f"fqi_{i}"] = {"type": "fqi", "file": agent_dir + f"fqi/{i+1}.pkl"}
+    # for i in range(5):
+    #     AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{i+1}"}
+    AGENTS_INFO[f"lo"] = {"type": "lo", "file": ""}
+    AGENTS_INFO[f"sho"] = {"type": "sho", "file": ""}
+    AGENTS_INFO[f"random"] = {"type": "random", "file": ""}
 
     OAMP_ARGS = {}
-    RUN_NAME = "oamp_7_independent_5"
+    RUN_NAME = "oamp_7_baselines"
     days = [7, 7]
     run_evaluation(RUN_NAME, AGENTS_INFO, OAMP_ARGS, days=days)

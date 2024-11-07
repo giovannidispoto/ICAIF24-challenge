@@ -107,7 +107,7 @@ class EnsembleEvaluator:
         agents_rewards_old = [0] * len(self.agents)
         # Trading
         return_ = 0
-        for _ in tqdm(range(self.trade_env.max_step)):
+        for step_ in tqdm(range(self.trade_env.max_step)):
             agents_actions = []
             agents_rewards = []
             # Collecting actions from each agent
@@ -120,6 +120,7 @@ class EnsembleEvaluator:
                 _, agent_reward, _, _, _ = agent_env.step(agent_action)
                 agents_rewards.append(agent_reward.item())
             # Computing ensemble action
+            # print(agents_rewards_old)
             action = self._ensemble_action(agents_actions, agents_rewards_old)
             agents_rewards_old = agents_rewards
             action_int = action - 1
@@ -143,6 +144,25 @@ class EnsembleEvaluator:
             last_state = state
             last_price = price
             return_ += reward
+            if step_ % 100 == 0:
+                np.save(
+                    os.path.join(self.save_path, "positions.npy"),
+                    positions,
+                )
+                np.save(
+                    os.path.join(self.save_path, "net_assets.npy"),
+                    np.array(self.net_assets),
+                )
+                np.save(
+                    os.path.join(self.save_path, "btc_positions.npy"),
+                    np.array(self.btc_assets),
+                )
+                np.save(
+                    os.path.join(self.save_path, "correct_predictions.npy"),
+                    np.array(correct_pred),
+                )
+                self.ensemble.plot_stats(self.save_path)
+
         # Saving trading history
         np.save(
             os.path.join(self.save_path, "positions.npy"),
@@ -179,7 +199,8 @@ def run_evaluation(
     run_name: str,
     agents_info: dict,
     oamp_args: dict=None,
-    env_args=None
+    env_args=None,
+    days=None
 ):
 
     gpu_id =-1  # Get GPU_ID from command line arguments
@@ -190,6 +211,8 @@ def run_evaluation(
         max_step = (4800 - num_ignore_step) // step_gap
         max_position = 1
         slippage = 7e-7
+        if days is None:
+            days = [16, 16]
         # max_ste not used but set to full len
         env_args = {
             "env_name": "TradeSimulator-v0",
@@ -203,9 +226,10 @@ def run_evaluation(
             "max_position": max_position,
             "slippage": slippage,
             "dataset_path": "data\BTC_1sec_predict.npy",  # Replace with your evaluation dataset path
-            "days": [17, 17],
+            "days": days,
             "eval_sequential": True
         }
+
     args = Config(agent_class=None, env_class=EvalTradeSimulator, env_args=env_args)
     args.gpu_id = gpu_id
     args.random_seed = gpu_id
@@ -243,5 +267,21 @@ if __name__ == "__main__":
             'file': 'agent_3.pkl',
         },
     }
-    OAMP_ARGS = {}
-    run_evaluation(RUN_NAME, AGENTS_INFO, OAMP_ARGS)
+    agent_dir = "results_agents/results_agents/completed/results/saved_agents/"
+    AGENTS_INFO = {}
+    # for i in range(5):
+    #     AGENTS_INFO[f"dqn_{i}"] = {"type": "dqn", "file": agent_dir + f"DQN_window_{i}"}
+    #     AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"PPO_window_{i}"}
+    agent_dir = "ppos_new/"
+    AGENTS_INFO = {}
+    for i in range(2):
+        AGENTS_INFO[f"ppo_{i}"] = {"type": "ppo", "file": agent_dir + f"{i + 1}"}
+    # for i in range(3):
+    #     AGENTS_INFO[f"fqi_{i}"] = {"type": "fqi", "file": agent_dir + f"fqi/{i+1}.pkl"}
+
+    OAMP_ARGS = {
+
+    }
+    RUN_NAME = "oamp_7_nuove_features"
+    days = [7, 7]
+    run_evaluation(RUN_NAME, AGENTS_INFO, OAMP_ARGS, days=days)
