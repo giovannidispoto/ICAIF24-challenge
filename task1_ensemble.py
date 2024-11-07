@@ -101,7 +101,7 @@ def run():
     step_gap = 2
     slippage = 7e-7
 
-    max_step = (4800 - num_ignore_step) // step_gap
+    max_step = 480 #(4800 - num_ignore_step) // step_gap
 
     env_args = {
         "env_name": "TradeSimulator-v0",
@@ -117,8 +117,8 @@ def run():
     }
 
     ensemble_method = Ensemble(env_args)
-    # ensemble_method.agents_training()
-    ensemble_method.agents_selection(num_sims=10)
+    ensemble_method.agents_training()
+    ensemble_method.agents_selection(num_sims=200)
 
 
 if __name__ == "__main__":

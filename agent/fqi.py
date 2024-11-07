@@ -127,6 +127,7 @@ class AgentFQI(AgentBase):
         env_args, 
         args,
     ):
+        env_args["num_sims"] = EPISODES_FQI
         eval_env = build_env(TradeSimulator, env_args, -1)
         (
             state_actions, 
@@ -134,15 +135,14 @@ class AgentFQI(AgentBase):
             next_states, 
             absorbing, 
             policies_unread,
-        ) = self.read_dataset(env_args["days"], data_dir=DATA_DIR)
+        ) = self.read_dataset(env_args["days"])
         if len(policies_unread) > 0:
             for policy in policies_unread:
                 sa, r, ns, a = self.generate_experience(
                     days_to_sample=env_args["days"],
                     env_args=env_args,
                     episodes=EPISODES_FQI,
-                    policy=policy,
-                    data_dir=DATA_DIR
+                    policy=policy
                 )
                 if len(state_actions) > 0:
                     state_actions = np.concatenate([state_actions, sa], axis=0)
