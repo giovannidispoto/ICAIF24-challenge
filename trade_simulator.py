@@ -254,17 +254,17 @@ class TradeSimulator(gymnasium.Env):
 
 
 class EvalTradeSimulator(TradeSimulator):
-
     def reset(
             self, 
             seed: Optional[int]=None, 
             options: Optional[dict] = None, 
             slippage=None, 
-            date_strs=(), 
+            date_strs=(),
+            _if_random=False,
             _if_sequential=True,
         ):
         gymnasium.Env().reset(seed=seed)
-        return self._reset(slippage=slippage, _if_random=False, _if_sequential=_if_sequential)
+        return self._reset(slippage=slippage, _if_random=_if_random, _if_sequential=_if_sequential)
 
     def step(self, action):
         return self._step(action, _if_random=False)

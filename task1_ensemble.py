@@ -78,8 +78,7 @@ class Ensemble:
     
    
     def agent_evaluation(self, agent: AgentBase, eval_env, seed=0):
-
-        state, _ = eval_env.reset(seed=seed, _if_sequential=False)
+        state, _ = eval_env.reset(seed=seed, _if_random=True)
         returns = th.zeros(eval_env.num_sims, dtype=th.float32, device=self.device)
             
         for _ in range(eval_env.max_step):
@@ -101,7 +100,7 @@ def run():
     step_gap = 2
     slippage = 7e-7
 
-    max_step = 480 #(4800 - num_ignore_step) // step_gap
+    max_step = (4800 - num_ignore_step) // step_gap
 
     env_args = {
         "env_name": "TradeSimulator-v0",
@@ -117,8 +116,8 @@ def run():
     }
 
     ensemble_method = Ensemble(env_args)
-    ensemble_method.agents_training()
-    ensemble_method.agents_selection(num_sims=200)
+    # ensemble_method.agents_training()
+    ensemble_method.agents_selection(num_sims=10)
 
 
 if __name__ == "__main__":
