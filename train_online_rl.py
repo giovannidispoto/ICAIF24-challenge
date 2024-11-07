@@ -402,14 +402,14 @@ def main():
     max_step=480
     eval_max_step=480
     
-    load_model_path = ROOT_DIR / "agents" / "ppo" / "new_tuning" / f"PPO_window_{start_train_day}_{end_train_day}"
-    if not os.path.exists(load_model_path):
-        raise FileNotFoundError(f'Model path {load_model_path} does not exist')
-    seeds_dir = [seed_dir for seed_dir in os.listdir(load_model_path)]
-    assert len(seeds_dir) == 1
-    load_model_path = os.path.join(load_model_path, seeds_dir[0])
+    # load_model_path = ROOT_DIR / "agents" / "ppo" / "new_tuning" / f"PPO_window_{start_train_day}_{end_train_day}"
+    # if not os.path.exists(load_model_path):
+    #     raise FileNotFoundError(f'Model path {load_model_path} does not exist')
+    # seeds_dir = [seed_dir for seed_dir in os.listdir(load_model_path)]
+    # assert len(seeds_dir) == 1
+    # load_model_path = os.path.join(load_model_path, seeds_dir[0])
     
-    # load_model_path = None
+    load_model_path = None
     
     trainer = TradeSimulatorTrainer(
         agent_class=agent_class,
@@ -424,9 +424,9 @@ def main():
         show_progress=args.progress,
         deterministic_eval=False,
         load_model_path= load_model_path,
-        n_episodes=350,
-        num_eval_sims=1,
-        eval_seq = True,
+        n_episodes=700,
+        num_eval_sims=50,
+        eval_seq = False,
         n_envs=4,
         n_seeds=args.n_seeds,
     )

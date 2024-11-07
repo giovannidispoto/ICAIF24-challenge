@@ -24,7 +24,7 @@ class AgentOnlineRl(AgentBase):
         device: str = "cpu",
         gpu_id: int = -1,
     ):
-        assert [agent_class == x for x in [PPO, DQN]], 'Only stable_baseline3 PPO and DQN are supported (prefer not to use sbx for now)'
+        assert agent_class in [PPO, DQN], 'Only stable_baseline3 PPO and DQN are supported (prefer not to use sbx for now)'
     
         self.device = torch.device(device)
         self.gpu_id = gpu_id
@@ -51,60 +51,55 @@ class AgentOnlineRl(AgentBase):
         self.agents = [self.agent_class.load(os.path.join(self.model_path, seed_dir)) for seed_dir in seeds_dir]
         
         
-    def train(self, days, seed=None, save_dir: str = ".", 
-              max_step:int=480, n_envs:int=1, n_episodes:int=300,
-              progress_bar:bool=True, save_tb_plots:bool=True,
-              model_params:dict={}, learn_params:dict={}):
-        assert len(days) == 2 and days[0] < days[1] and days[0] >= 7 and days[1] <= 14, 'Error on days'
+    def train(self,
+              env_args: dict,
+              model_args: dict,
+              learn_args: dict = {},
+              n_episodes: int = 200,
+              save_path: str = None):
+        
+        days = env_args.get("days", None)
+        assert days is not None and days[0] <= days[1] and days[0] >= 7 and days[1] <= 16, 'Correct days must be provided'            
+
+        n_envs = env_args.get("num_envs", 1)
+        # Setting num_envs externally in stable baseline, in the wrapped env setting num_envs to 1
+        env_args["num_envs"] = 1
+        env_args['num_sims'] = 1  # Only num_sims=1 is supported
+
+        seed = env_args.get("seed", None)
         if seed is None:
             np.random.seed()
             seed = np.random.randint(2**32 - 1, dtype="int64")
-        
-        env_args = {
-            "env_name": "TradeSimulator-v0",
-            "num_envs": 1,
-            "num_sims": 1,
-            "state_dim": 10,
-            "action_dim": 3,
-            "if_discrete": True,
-            "max_position": 1,
-            "slippage": 7e-7,
-            "step_gap": 2,
-            "eval_sequential": False,
-            "env_class": TradeSimulator,
-            "max_step": max_step,
-            "days": days,
-            "seed": seed,
-        }            
-
-        if save_tb_plots:
-            tb_log_path = os.path.join(save_dir, f'seed_{seed}', "tb")       
-            os.makedirs(tb_log_path, exist_ok=True)
-        else:
-            tb_log_path = None
-        
+            print(f'Seed not provided, using random seed {seed}')
+            env_args["seed"] = seed
+            
         env = make_vec_env(
             lambda: build_env(TradeSimulator, env_args, gpu_id=self.gpu_id),
             n_envs=n_envs,
             seed=seed
         )
+        progress_bar = model_args.get('progress_bar', False)
+        model_args.pop('progress_bar', None)
+        
         print(f'Training with seed: {seed} on days: [{self.start_day}, {self.end_day}]')
         agent = self.agent_class("MlpPolicy", env, verbose=0, 
-                                 seed=seed, 
-                                 tensorboard_log=tb_log_path, 
-                                 **model_params)
-            
-        agent.learn(total_timesteps=max_step * n_episodes, 
-                    progress_bar=progress_bar, 
-                    **learn_params)
+                                 seed=seed,
+                                 **model_args)
+        
+
+        agent.learn(total_timesteps=env_args['max_step'] * n_episodes, progress_bar=progress_bar, **learn_args)
         
         # Plot tb plots
+        tb_log_path = model_args.get('tensorboard_log', None)
         if tb_log_path is not None:
             tb_dirs = AgentOnlineRl._find_all_directories(tb_log_path)
             for tb_dir in tb_dirs:
                 tb_curr_plot_dir = os.path.join(tb_dirs, tb_dir.split('/')[-1])
                 os.makedirs(tb_curr_plot_dir, exist_ok=True)
                 AgentOnlineRl._save_tensorboard_plots(tb_dir, tb_curr_plot_dir)
+        
+        if save_path is not None:
+            AgentOnlineRl.save(agent, save_path)
         
         return agent
     
