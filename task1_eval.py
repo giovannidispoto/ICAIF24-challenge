@@ -88,7 +88,7 @@ class EnsembleEvaluator:
             )
             self.agents_names.append(agent_name)
 
-    def multi_trade(self, evaluation_steps_count):
+    def multi_trade(self):
         # Initializing trading history
         positions = []
         action_ints = []
@@ -101,6 +101,8 @@ class EnsembleEvaluator:
         # Initializing trading agents rewards
         reward = 0.0
         agents_rewards_old = [0.0] * len(self.agents)
+        # Setting the number of evaluations steps equal to the len of the market data        
+        evaluation_steps_count = len(self.trade_env.price_ary)//self.step_gap - 2
         # Trading
         for step in tqdm(range(evaluation_steps_count)):
             if step > 0 and step % self.args.env_args['max_step'] == 0:
@@ -171,12 +173,9 @@ class EnsembleEvaluator:
 
 
 def run_evaluation(
-    run_name: str,
     agents_info: dict,
     oamp_args: dict=None,
-):
-    evaluation_steps_count = 5000
-    
+):    
     # Setting env args
     gpu_id = -1
     num_sims = 1
