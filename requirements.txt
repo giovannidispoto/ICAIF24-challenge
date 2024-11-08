@@ -2,7 +2,7 @@ torch
 pandas
 gymnasium
 numpy
-stable-baselines3
+stable-baselines3==2.4.0a11
 matplotlib
 scikit-learn
 plotly
