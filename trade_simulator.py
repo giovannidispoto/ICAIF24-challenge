@@ -39,7 +39,7 @@ class TradeSimulator(gymnasium.Env):
         args = ConfigData()
 
         """load data"""
-        data_df = pd.read_parquet(args.parquet_path)  # CSV READ HERE
+        data_df = pd.read_csv(args.csv_path)  # CSV READ HERE
         self.factor_ary = np.load(args.predict_ary_path)
         self.factor_ary = th.tensor(self.factor_ary, dtype=th.float32)  # CPU
         # Filter data
