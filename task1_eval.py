@@ -102,7 +102,7 @@ class EnsembleEvaluator:
         reward = 0.0
         agents_rewards_old = [0.0] * len(self.agents)
         # Setting the number of evaluations steps equal to the len of the market data        
-        evaluation_steps_count = 1000# len(self.trade_env.price_ary)//self.args.env_args['step_gap'] - 2
+        evaluation_steps_count = len(self.trade_env.price_ary)//self.args.env_args['step_gap'] - 2
         # Trading
         for step in tqdm(range(evaluation_steps_count)):
             if step > 0 and step % self.args.env_args['max_step'] == 0:
