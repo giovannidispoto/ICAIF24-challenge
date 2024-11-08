@@ -29,6 +29,7 @@ The repository is organized as follows:
 │ ├── factory.py # Agent factory used for loading and utilities
 │ ├── fqi.py # Implementation of the FQI agents
 │ ├── online_rl.py # Implementation of the DQN and PPO agents
+├── experiments # Folder containing the experiments results
 ├── oamp # Folder containing our implementation of the OAMP method 
 │ ├── oamp.py # file containing our implementation of the OAMP method 
 │ ├── oamp_config.py # file containing oamp args
@@ -42,7 +43,9 @@ The repository is organized as follows:
 ├── README.md: # this readme file
 ```
 
+
 To execute our ensemble method, you need to:
+0. create a virtual env with python 3.10 and install the required packages (see requirements.py)
 1. unzip the agents folder which includes:
     - the files of the policies of the 21 agents
     - the file agents_args.json, which in turn contains the model args to retrain the agent
@@ -54,8 +57,8 @@ Note that:
 - we updated trade_simulator.py in order to allow sequential evaluation (see row 105 in trade_simulator.py)
 - we set the number of evaluation steps to the len of the market data dataframe (see row 104 in task_1_eval.py).
 
-
 To rebuild the set of agents, for sake of reproducibility, you need to:
+0. create a virtual env with python 3.10 and install the required packages (see requirements.py)
 1. remove all the files of the policies of the 21 agents from the agents folder (otherwise it will load the model)
 2. upload the data files (BTC_1sec.csv and BTC_1sec_predict.npy) relative to the training period inside the data director (check that the paths of these files is consistent with those inside data_config.py)
 3. run task_1_ensemble.py.
