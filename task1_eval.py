@@ -102,7 +102,7 @@ class EnsembleEvaluator:
         reward = 0.0
         agents_rewards_old = [0.0] * len(self.agents)
         # Setting the number of evaluations steps equal to the len of the market data        
-        evaluation_steps_count = len(self.trade_env.price_ary)//self.step_gap - 2
+        evaluation_steps_count = 1000# len(self.trade_env.price_ary)//self.args.env_args['step_gap'] - 2
         # Trading
         for step in tqdm(range(evaluation_steps_count)):
             if step > 0 and step % self.args.env_args['max_step'] == 0:
@@ -172,10 +172,7 @@ class EnsembleEvaluator:
         return self.ensemble.step(np.array(rewards), np.array(actions), reward)
 
 
-def run_evaluation(
-    agents_info: dict,
-    oamp_args: dict=None,
-):    
+def run_evaluation():    
     # Setting env args
     gpu_id = -1
     num_sims = 1
@@ -213,7 +210,7 @@ def run_evaluation(
         agents_info[agent] = {'type': agent[:3], 'file': agent}
     
     # Retrieving oamp args
-    oamp_args = ConfigOAMP(oamp_args)
+    oamp_args = ConfigOAMP({})
 
     # Ensemble trading
     ensemble_evaluator = EnsembleEvaluator(
@@ -223,7 +220,7 @@ def run_evaluation(
         args,
     )
     ensemble_evaluator.load_agents()
-    ensemble_evaluator.multi_trade(evaluation_steps_count)
+    ensemble_evaluator.multi_trade()
 
 
 if __name__ == "__main__":
