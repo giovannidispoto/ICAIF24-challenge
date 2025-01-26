@@ -1,5 +1,5 @@
 # RL3 FinRL Task 1 Submission
-In this repository, we present the submission of the RL3 team to the FinRL2024 Competition.
+In this repository, we present the submission of the RL3 team to the FinRL2024 Competition -> [paper](https://github.com/giovannidispoto/ICAIF24-challenge/blob/submission/paper.pdf).
 
 We propose a two-layer trading architecture, where an Online Adaptation method based on OAMP [1] works as ensemble method on top of a set of RL agents. The OAMP algorithm allows performing an online, performance-driven, validation of the agents. In this way it is possible to overcome the limitations of traditional model selection procedures which are usually based on backtesting model on historical data.
 
